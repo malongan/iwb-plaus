@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IWB 鲜艺抠图设置</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 340px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 13px; color: #1f2328; background: #fff; }
+  .header { background: linear-gradient(135deg, #e8a735, #d48806); color: #fff; padding: 16px; border-radius: 0 0 0 0; }
+  .header h1 { font-size: 16px; font-weight: 600; }
+  .header p { font-size: 11px; opacity: 0.9; margin-top: 4px; }
+  .body { padding: 16px; }
+  .section { margin-bottom: 16px; }
+  .section-title { font-size: 12px; font-weight: 600; color: #656d76; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .row label { font-size: 13px; }
+  .row .desc { font-size: 11px; color: #656d76; margin-top: 2px; }
+  .input { width: 100%; padding: 6px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 13px; }
+  .input:focus { outline: none; border-color: #e8a735; box-shadow: 0 0 0 3px rgba(232, 167, 53, 0.15); }
+  .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #d0d7de; border-radius: 22px; transition: 0.2s; }
+  .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s; }
+  .toggle input:checked + .toggle-slider { background: #e8a735; }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(18px); }
+  .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .btn-primary { background: #e8a735; color: #fff; }
+  .btn-primary:hover { background: #d48806; }
+  .btn-secondary { background: #f6f8fa; color: #1f2328; border: 1px solid #d0d7de; }
+  .btn-secondary:hover { background: #eff2f4; }
+  .status { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 8px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status-online { background: #1a7f37; }
+  .status-offline { background: #cf222e; }
+  .status-checking { background: #e8a735; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .footer { padding: 12px 16px; border-top: 1px solid #d0d7de; display: flex; justify-content: space-between; align-items: center; }
+  .footer-text { font-size: 11px; color: #656d76; }
+  .radio-group { display: flex; flex-direction: column; gap: 6px; }
+  .radio-item { display: flex; align-items: flex-start; gap: 6px; cursor: pointer; }
+  .radio-item input { margin-top: 2px; }
+  .radio-item label { font-size: 13px; }
+  .radio-item .radio-desc { font-size: 11px; color: #656d76; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>IWB 鲜艺抠图节点</h1>
+    <p>在生图工作台画布中一键抠图</p>
+  </div>
+  <div class="body">
+    <div class="section">
+      <div class="section-title">API 设置</div>
+      <div class="row">
+        <div style="flex:1">
+          <label>鲜艺抠图服务地址</label>
+          <div class="desc">默认 http://localhost:30092</div>
+        </div>
+      </div>
+      <input type="text" class="input" id="apiUrl" placeholder="http://localhost:30092">
+      <div class="status" id="apiStatus">
+        <div class="status-dot status-checking" id="statusDot"></div>
+        <span id="statusText">检测中...</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">抠图选项</div>
+      <div class="row">
+        <div>
+          <label>自动裁剪透明像素</label>
+          <div class="desc">抠图后裁掉多余的透明区域</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="crop">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">结果处理方式</div>
+      <div class="radio-group">
+        <div class="radio-item">
+          <input type="radio" name="resultMode" id="modeNewNode" value="newNode" checked>
+          <div>
+            <label for="modeNewNode">创建新节点（推荐）</label>
+            <div class="radio-desc">在原图右侧创建新 ref 节点并自动连线</div>
+          </div>
+        </div>
+        <div class="radio-item">
+          <input type="radio" name="resultMode" id="modeReplace" value="replace">
+          <div>
+            <label for="modeReplace">替换原图</label>
+            <div class="radio-desc">直接替换当前节点的图片</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">白底大图设置</div>
+      <div class="row">
+        <div>
+          <label>抠图后自动转白底</label>
+          <div class="desc">抠图完成后直接生成白底大图（跳过透明图）</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="autoWhiteBg">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="row">
+        <div style="flex:1; margin-right:12px;">
+          <label>白底尺寸 (px)</label>
+          <div class="desc">画布边长，默认 800</div>
+        </div>
+        <input type="number" id="bgSize" class="input" style="width:80px" min="64" max="4096" step="8">
+      </div>
+      <div class="row">
+        <div style="flex:1; margin-right:12px;">
+          <label>内容占比 (%)</label>
+          <div class="desc">原图最长边占画布比例，默认 85</div>
+        </div>
+        <input type="number" id="bgRatio" class="input" style="width:80px" min="10" max="100" step="5">
+      </div>
+      <div class="desc" style="margin-top:4px;">💡 节点上第二个按钮（蓝色方块）可对任意透明图直接转白底</div>
+    </div>
+
+    <div class="section">
+      <div class="row">
+        <div>
+          <label>自动连接节点</label>
+          <div class="desc">新节点模式下，自动连线 原图 → 抠图结果</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="autoConnect" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-text">v1.1.0 · 鲜艺抠图 + 白底大图</span>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-secondary" id="testBtn">测试连接</button>
+      <button class="btn btn-primary" id="saveBtn">保存</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
