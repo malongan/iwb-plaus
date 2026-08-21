@@ -31,7 +31,8 @@ async function callCutoutAPI(imageBase64, config) {
     bytes[i] = binaryString.charCodeAt(i)
   }
 
-  const url = `${config.apiUrl}/rmbg?crop=${config.crop ? 'true' : 'false'}`
+  const apiUrl = String(config.apiUrl || 'http://localhost:30092').replace(/\/$/, '')
+  const url = `${apiUrl}/rmbg?crop=${config.crop ? 'true' : 'false'}`
   const resp = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
@@ -56,7 +57,8 @@ async function callCutoutAPI(imageBase64, config) {
 
 // 通过 URL 调用鲜艺抠图（用于在线图片 URL）
 async function callCutoutAPIByUrl(imageUrl, config) {
-  const url = `${config.apiUrl}/rmbg?crop=${config.crop ? 'true' : 'false'}`
+  const apiUrl = String(config.apiUrl || 'http://localhost:30092').replace(/\/$/, '')
+  const url = `${apiUrl}/rmbg?crop=${config.crop ? 'true' : 'false'}`
   // 先下载图片，再以二进制方式发送
   const imgResp = await fetch(imageUrl, { mode: 'cors' })
   if (!imgResp.ok) throw new Error(`无法下载图片: ${imgResp.status}`)
@@ -110,11 +112,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === 'PING_API') {
     getConfig().then(config => {
-      return fetch(`${config.apiUrl}/rmbg`, { method: 'HEAD' })
+      const apiUrl = String(msg.apiUrl || config.apiUrl).replace(/\/$/, '')
+      return fetch(`${apiUrl}/rmbg`, { method: 'HEAD' })
     }).then(resp => {
+      // 任何 HTTP 响应都说明服务可达；只有网络异常才判定离线。
       sendResponse({ success: true, status: resp.status })
     }).catch(err => {
-      // HEAD 可能返回 405，但只要能连上就说明 API 在线
       sendResponse({ success: false, error: err.message })
     })
     return true

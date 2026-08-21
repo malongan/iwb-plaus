@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     statusDot.className = 'status-dot status-checking'
     statusText.textContent = '检测中...'
 
-    chrome.runtime.sendMessage({ type: 'PING_API' }, (resp) => {
+    chrome.runtime.sendMessage({ type: 'PING_API', apiUrl: url }, (resp) => {
       if (resp && resp.success) {
         statusDot.className = 'status-dot status-online'
         statusText.textContent = '鲜艺抠图服务已连接'

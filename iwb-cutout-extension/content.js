@@ -64,13 +64,14 @@
 
   /** 从 DOM 节点读取图片数据 */
   function getImageFromNode(nodeEl) {
-    // ref 节点的图片
-    let img = nodeEl.querySelector('.iwb-ref-single, .iwb-ref-show img')
+    // 兼容图片元素自身带 class，以及 class 挂在图片容器上的两种结构。
+    let img = nodeEl.querySelector('img.iwb-ref-single, .iwb-ref-single img, .iwb-ref-show img')
     // 输出节点的图片
-    if (!img) img = nodeEl.querySelector('.iwb-out-cell-img, .iwb-result-thumb')
-    if (!img || !img.src) return null
+    if (!img) img = nodeEl.querySelector('img.iwb-out-cell-img, .iwb-out-cell-img img, img.iwb-result-thumb, .iwb-result-thumb img')
+    if (!img) return null
 
-    const src = img.src
+    const src = img.currentSrc || img.src
+    if (!src) return null
     if (src.startsWith('data:')) return { base64: src }
     if (src.startsWith('blob:')) return { blobUrl: src }
     return { url: src }
@@ -115,6 +116,10 @@
           }
         }
       } catch (e) { /* 跨域失败则直接加载，可能污染 canvas */ }
+    }
+    // 未能以 CORS 方式获取的远程图片不能安全导出为 base64，避免后续出现含糊的 canvas tainted 错误。
+    if (/^https?:/i.test(src)) {
+      throw new Error('远程图片禁止跨域读取')
     }
     return loadVia(src)
   }
@@ -181,19 +186,32 @@
       if (!imgData) { showToast('未找到图片，请确保节点中有图片', 'error'); return }
 
       let imageBase64 = imgData.base64
-      let imageUrl = imgData.url
 
-      // blob URL 需要先转成 base64
-      if (!imageBase64 && !imageUrl && imgData.blobUrl) {
+      // 统一在页面上下文读取图片，避免 background fetch 图片 URL 时丢失页面鉴权/CORS 信息。
+      if (!imageBase64 && imgData.blobUrl) {
         imageBase64 = await blobUrlToBase64(imgData.blobUrl)
-        if (!imageBase64) { showToast('无法读取图片数据', 'error'); return }
       }
+      if (!imageBase64 && imgData.url) {
+        try {
+          const img = await loadImageSafe(imgData.url)
+          const canvas = document.createElement('canvas')
+          canvas.width = img.naturalWidth || img.width
+          canvas.height = img.naturalHeight || img.height
+          if (!canvas.width || !canvas.height) throw new Error('图片尺寸无效')
+          canvas.getContext('2d').drawImage(img, 0, 0)
+          imageBase64 = canvas.toDataURL('image/png')
+        } catch (e) {
+          // 页面侧可能被 CORS/鉴权拦截，交给扩展后台按 URL 下载。
+          if (!/^https?:/i.test(imgData.url)) throw new Error('无法读取图片数据')
+        }
+      }
+      if (!imageBase64 && !imgData.url) throw new Error('无法读取图片数据')
 
-      // 2. 调用鲜艺抠图 API
+      // 2. 调用鲜艺抠图 API；页面转 base64 失败时由 background 按 URL 下载。
       const resp = await chrome.runtime.sendMessage({
         type: 'CUTOUT_IMAGE',
         imageBase64: imageBase64 || null,
-        imageUrl: imageUrl || null
+        imageUrl: imageBase64 ? null : imgData.url
       })
 
       if (!resp || !resp.success) {
