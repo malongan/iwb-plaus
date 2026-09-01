@@ -901,8 +901,8 @@ function setActiveLayer(id) {
   function syncOverlayCanvas() {
     const pad = S.overlayPad || 0
     const scale = S.imgW ? (S.fitW * S.zoom) / S.imgW : 1
-    S.overlayCanvas.style.left = (-pad * scale) + 'px'
-    S.overlayCanvas.style.top = (-pad * scale) + 'px'
+    S.overlayCanvas.style.left = '0px'
+    S.overlayCanvas.style.top = '0px'
     S.overlayCanvas.style.width = Math.round((S.imgW + pad * 2) * scale) + 'px'
     S.overlayCanvas.style.height = Math.round((S.imgH + pad * 2) * scale) + 'px'
   }
@@ -1000,8 +1000,19 @@ function setActiveLayer(id) {
     S.textCanvas.style.height = S.strokeCanvas.style.height = h + 'px'
     syncOverlayCanvas()
     // 显式固定 stack 尺寸，保证统一坐标基准始终可测量，新增/隐藏图层不会触发布局偏移。
-    S.canvasStack.style.width = w + 'px'
-    S.canvasStack.style.height = h + 'px'
+    const pad = S.overlayPad || 0
+    const scale = S.imgW ? (S.fitW * S.zoom) / S.imgW : 1
+    S.canvasStack.style.width = Math.round((S.imgW + pad * 2) * scale) + 'px'
+    S.canvasStack.style.height = Math.round((S.imgH + pad * 2) * scale) + 'px'
+    const layerOffset = Math.round(pad * scale)
+    for (const layer of S.layers) {
+      layer.canvas.style.left = layerOffset + 'px'
+      layer.canvas.style.top = layerOffset + 'px'
+    }
+    S.textCanvas.style.left = layerOffset + 'px'
+    S.textCanvas.style.top = layerOffset + 'px'
+    S.strokeCanvas.style.left = layerOffset + 'px'
+    S.strokeCanvas.style.top = layerOffset + 'px'
 
     let left, top
     if (anchor && anchor.mx !== undefined) {
@@ -1023,8 +1034,10 @@ function setActiveLayer(id) {
     S.viewX = x
     S.viewY = y
     const stack = S.canvasStack
-    // 只更新合成位移，避免拖拽时反复触发布局计算。
-    stack.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`
+    const scale = S.imgW ? (S.fitW * S.zoom) / S.imgW : 1
+    const pad = S.overlayPad || 0
+    // 让原图左上角仍对应 viewX/viewY，外围 padding 不参与画布平移坐标。
+    stack.style.transform = `translate3d(${Math.round(x - pad * scale)}px, ${Math.round(y - pad * scale)}px, 0)`
   }
 
   /** 以指定屏幕坐标（wrap 内）为中心缩放 */
@@ -1093,11 +1106,11 @@ function setActiveLayer(id) {
     // 统一使用 stack 的边界作为坐标基准。图层 canvas 可能被隐藏，或在
     // 插入/重排时暂时不参与布局；以具体图层 boundingRect 计算会造成左移。
     const rect = S.canvasStack.getBoundingClientRect()
-    const sx = S.imgW / Math.max(1, rect.width)
-    const sy = S.imgH / Math.max(1, rect.height)
+    const pad = S.overlayPad || 0
+    const scale = S.imgW ? (S.fitW * S.zoom) / S.imgW : 1
     return {
-      x: (e.clientX - rect.left) * sx,
-      y: (e.clientY - rect.top) * sy
+      x: (e.clientX - rect.left) / Math.max(scale, 0.0001) - pad,
+      y: (e.clientY - rect.top) / Math.max(scale, 0.0001) - pad
     }
   }
 
