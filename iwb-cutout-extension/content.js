@@ -604,7 +604,7 @@
 
       const compressBtn = document.createElement('button')
       compressBtn.className = 'iwb-node-del iwb-compress-btn'; compressBtn.textContent = '压'
-      bindTip(compressBtn, `图片压缩（宽度 ${currentConfig.compressWidth || 1024}px，质量 ${currentConfig.compressQuality || 80}%）`)
+      bindTip(compressBtn, `图片压缩（宽度 ${config.compressWidth || 1024}px，质量 ${config.compressQuality || 80}%）`)
       compressBtn.addEventListener('pointerdown', e => e.stopPropagation())
       compressBtn.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); performCompress(nodeEl) })
       if (copyBtn) headBtns.insertBefore(compressBtn, copyBtn); else headBtns.appendChild(compressBtn)
