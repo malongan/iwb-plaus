@@ -106,10 +106,11 @@
             <button class="iwb-editor-tool" data-tool="eraser" title="橡皮：擦除当前活跃图层的内容（画笔标注或原图），与画笔共用大小/硬度/透明度"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
 
             <button class="iwb-editor-tool" data-tool="rect" title="矩形框"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+             <button class="iwb-editor-tool" data-tool="circle" title="圆形"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/></svg></button>
 
             <button class="iwb-editor-tool" data-tool="arrow" title="箭头"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
 
-             <button class="iwb-editor-tool" data-tool="pen" title="钢笔：点击添加节点，双击或 Enter 完成自定义形状"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19 7-7 2 2-7 7-4 1z"/><path d="m18 13-7-7 3-3 7 7z"/><path d="M3 21h6"/></svg></button>
+             <button class="iwb-editor-tool" data-tool="pen" title="钢笔：点击添加节点，双击或 Enter 完成自定义形状"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 10l10 10 8-8L12 2Z"/><path d="m4 10 10 10"/><path d="m14 6 4 4"/><path d="M12 2v4"/><path d="M8 6h8"/></svg></button>
 
             <button class="iwb-editor-tool" data-tool="text" title="文字"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 3 20 3 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="3" x2="12" y2="20"/></svg></button>
 
@@ -118,12 +119,21 @@
             <button class="iwb-editor-tool" data-tool="hand" title="抓手：拖拽自由移动画布（任意工具下按住空格或鼠标中键也可平移）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 10a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
 <span class="iwb-editor-divider"></span>
             <button class="iwb-editor-tool" data-tool="crop" title="裁剪"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"/></svg></button>
-            <span class="iwb-editor-divider"></span>
+
+          </div>
+           <div class="iwb-editor-actions">
+            <div class="iwb-editor-export-actions">
+          <button class="iwb-editor-btn iwb-editor-btn-cancel" data-action="cancel">退出编辑</button>
+          <button class="iwb-editor-btn iwb-editor-btn-new" data-action="newNode">新建节点</button>
+          <button class="iwb-editor-btn iwb-editor-btn-replace" data-action="replace">覆盖原图</button>
+           </div>
+             <span class="iwb-editor-divider"></span>
             <button class="iwb-editor-action" data-action="undo" title="撤销 (Ctrl+Z)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
             <button class="iwb-editor-action" data-action="redo" title="重做 (Ctrl+Shift+Z)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
             <button class="iwb-editor-action" data-action="reset" title="清空标注"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
             <button class="iwb-editor-action iwb-editor-action-restore" data-action="restore" title="复原原始图（撤销所有编辑）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
-          </div>
+           </div>
+
           <div class="iwb-editor-params">
             <div class="iwb-editor-zoom">
               <button class="iwb-editor-zoom-btn" data-action="zoomOut" title="缩小 (滚轮向下)">−</button>
@@ -132,7 +142,7 @@
               <button class="iwb-editor-zoom-btn iwb-editor-zoom-fit" data-action="zoomFit" title="适应窗口">适应</button>
             </div>
             <span class="iwb-editor-divider"></span>
-            <div class="iwb-editor-colors">
+            <div class="iwb-editor-colors iwb-editor-top-colors">
               <span class="iwb-editor-color active" data-color="#ff4444" style="background:#ff4444"></span>
               <span class="iwb-editor-color" data-color="#44dd44" style="background:#44dd44"></span>
               <span class="iwb-editor-color" data-color="#4488ff" style="background:#4488ff"></span>
@@ -152,10 +162,16 @@
               <button class="iwb-editor-layer-btn" data-layer="down" title="下移一层 (Ctrl+[)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/></svg></button>
               <button class="iwb-editor-layer-btn" data-layer="bottom" title="置底：选中元素移到最下层 (Ctrl+Shift+[)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/><line x1="4" y1="19" x2="20" y2="19"/></svg></button>
             </div>
-            <label class="iwb-editor-brush-label">大小
+            <label class="iwb-editor-brush-label">描边
               <input type="range" class="iwb-editor-brush-size" min="1" max="300" value="3">
               <input type="number" class="iwb-editor-brush-num" min="1" max="300" step="1" value="3" title="输入精确笔刷大小（1~300）">
             </label>
+            <div class="iwb-editor-brush-presets" aria-label="描边快捷值">
+              <button type="button" class="iwb-editor-brush-preset" data-brush-size="4" title="描边 4"><i></i></button>
+              <button type="button" class="iwb-editor-brush-preset" data-brush-size="8" title="描边 8"><i></i></button>
+              <button type="button" class="iwb-editor-brush-preset" data-brush-size="16" title="描边 16"><i></i></button>
+              <button type="button" class="iwb-editor-brush-preset" data-brush-size="24" title="描边 24"><i></i></button>
+            </div>
             <div class="iwb-editor-brush-group">
               <label class="iwb-editor-brush-label">硬度
                 <input type="range" class="iwb-editor-brush-hardness" min="0" max="100" value="100">
@@ -171,7 +187,8 @@
         <div class="iwb-editor-main">
           <div class="iwb-editor-canvas-wrap">
             <div class="iwb-editor-canvas-stack">
-              <!-- 位图图层 canvas 动态插入此处 -->
+              <div class="iwb-editor-transparency-grid"></div>
+               <!-- 位图图层 canvas 动态插入此处 -->
               <canvas class="iwb-editor-stroke"></canvas>
               <canvas class="iwb-editor-text"></canvas>
               <canvas class="iwb-editor-crop-overlay"></canvas>
@@ -212,13 +229,12 @@
                 <button class="iwb-editor-layer-add-btn" data-action="addBlankLayer" title="新建空白图层"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>
               </div>
             </div>
-            <div class="iwb-editor-layer-list"></div>
+            <div class="iwb-editor-color-panel"><div class="iwb-editor-color-panel-title">调色板</div><div class="iwb-editor-color-picker2"><div class="iwb-color-sv"><span></span></div><div class="iwb-color-hue"><span></span></div></div><div class="iwb-editor-color-fields"><input class="iwb-editor-color-hex-input" value="#ff4444" maxlength="7"><input class="iwb-editor-color-panel-input" type="color" value="#ff4444"></div><div class="iwb-editor-color-swatches"><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff4444" style="background:#ff4444" title="#ff4444"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff8800" style="background:#ff8800" title="#ff8800"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffd400" style="background:#ffd400" title="#ffd400"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#44dd44" style="background:#44dd44" title="#44dd44"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#00bfa5" style="background:#00bfa5" title="#00bfa5"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#4488ff" style="background:#4488ff" title="#4488ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#aa44ff" style="background:#aa44ff" title="#aa44ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff66aa" style="background:#ff66aa" title="#ff66aa"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffffff" style="background:#ffffff" title="#ffffff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#b8b8b8" style="background:#b8b8b8" title="#b8b8b8"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#555555" style="background:#555555" title="#555555"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#000000" style="background:#000000" title="#000000"></button></div></div>
+<div class="iwb-editor-layer-list"></div>
           </div>
         </div>
         <div class="iwb-editor-footer">
-          <button class="iwb-editor-btn iwb-editor-btn-cancel" data-action="cancel">取消</button>
-          <button class="iwb-editor-btn iwb-editor-btn-new" data-action="newNode">新建节点</button>
-          <button class="iwb-editor-btn iwb-editor-btn-replace" data-action="replace">覆盖原图</button>
+
         </div>
       </div>
     `
@@ -226,6 +242,7 @@
 
     S.canvasWrap = el.querySelector('.iwb-editor-canvas-wrap')
     S.canvasStack = el.querySelector('.iwb-editor-canvas-stack')
+    S.transparencyGrid = el.querySelector('.iwb-editor-transparency-grid')
     S.textCanvas = el.querySelector('.iwb-editor-text')
     S.strokeCanvas = el.querySelector('.iwb-editor-stroke')
     S.overlayCanvas = el.querySelector('.iwb-editor-crop-overlay')
@@ -446,7 +463,7 @@ function setActiveLayer(id) {
 
     const id = 'L' + Date.now() + Math.floor(Math.random() * 1000)
     const canvas = createLayerCanvas()
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     ctx.clearRect(0, 0, S.imgW, S.imgH)
     const layer = {
       id,
@@ -500,7 +517,7 @@ function setActiveLayer(id) {
     // 创建图层
     const id = 'L' + Date.now() + Math.floor(Math.random() * 1000)
     const canvas = createLayerCanvas()
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     ctx.clearRect(0, 0, S.imgW, S.imgH)
     ctx.drawImage(img, x, y, w, h) // image placement
     const layer = {
@@ -706,11 +723,13 @@ function setActiveLayer(id) {
   function updateLayerCanvasStyles() {
     const w = Math.round(S.fitW * S.zoom)
     const h = Math.round(S.fitH * S.zoom)
+    const scale = S.imgW ? (S.fitW * S.zoom) / S.imgW : 1
+    const offset = Math.round((S.overlayPad || 0) * scale)
     for (const layer of S.layers) {
       layer.canvas.style.width = w + 'px'
       layer.canvas.style.height = h + 'px'
-      layer.canvas.style.left = '0px'
-      layer.canvas.style.top = '0px'
+      layer.canvas.style.left = offset + 'px'
+      layer.canvas.style.top = offset + 'px'
     }
   }
 
@@ -732,6 +751,8 @@ function setActiveLayer(id) {
         opacity: layer.opacity,
         visible: layer.visible,
         z: layer.z,
+        color: layer.color || S.color,
+        lineWidth: layer.lineWidth || S.brushSize,
         active: layer.id === (S.selectedLayerId || S.activeLayerId),
         locked: !!layer.locked,
         canDelete: S.layers.length > 1
@@ -744,10 +765,12 @@ function setActiveLayer(id) {
       items.push({
         id: obj.id,
         type: kind,
-        name: kind === 'text' ? '"' + (obj.text || '').slice(0, 12) + '"' : (obj.type === 'rect' ? '矩形' : obj.type === 'pen' ? '钢笔形状' : '箭头'),
+        name: kind === 'text' ? '"' + (obj.text || '').slice(0, 12) + '"' : (obj.type === 'rect' ? '矩形' : obj.type === 'circle' ? '圆形' : obj.type === 'pen' ? '钢笔形状' : '箭头'),
         opacity: obj.opacity != null ? obj.opacity : 1,
         visible: obj.visible !== false,
         z: obj.z || 0,
+         color: obj.color || S.color,
+         lineWidth: obj.lw || S.brushSize,
         active: (kind === 'text' && obj.id === S.selectedTextId) || (kind === 'shape' && obj.id === S.selectedShapeId),
         locked: !!obj.locked,
         canDelete: true
@@ -779,10 +802,12 @@ function setActiveLayer(id) {
         ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>'
         : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7-2"/></svg>'
       const delSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
-      html += `<div class="iwb-layer-item${activeClass}${visClass}" draggable="${item.id !== 'draw' && item.id !== 'base'}" data-layer-id="${item.id}" data-layer-type="${item.type}">
+      html += `<div class="iwb-layer-item${activeClass}${visClass}" draggable="${item.id !== 'base'}" data-layer-id="${item.id}" data-layer-type="${item.type}">
         <button class="iwb-layer-vis" data-vis-id="${item.id}" data-vis-type="${item.type}" title="${item.visible ? '隐藏' : '显示'}">${visSvg}</button>
         <span class="iwb-layer-icon">${typeIconSvg}</span>
         <span class="iwb-layer-name">${item.name}</span>
+        ${(item.type === 'bitmap' || item.type === 'shape') ? `<input class="iwb-layer-color" type="color" value="${item.color}" data-color-id="${item.id}" data-color-type="${item.type}" title="调整颜色">` : ''}
+        ${(item.type === 'bitmap' || item.type === 'shape') ? `<input class="iwb-layer-width" type="number" min="1" max="300" value="${Math.round(item.lineWidth)}" data-width-id="${item.id}" data-width-type="${item.type}" title="调整边框粗细">` : ''}
         <button class="iwb-layer-lock${item.locked ? ' active' : ''}" data-lock-id="${item.id}" data-lock-type="${item.type}" title="${item.locked ? '解锁图层' : '锁定图层'}">${lockSvg}</button>
          ${item.canDelete ? `<button class="iwb-layer-del" data-del-id="${item.id}" data-del-type="${item.type}" title="删除图层">${delSvg}</button>` : ''}
       </div>`
@@ -794,10 +819,21 @@ function setActiveLayer(id) {
   }
 
   function reorderPanelItem(dragId, targetId) {
-    if (!dragId || !targetId || dragId === targetId || dragId === 'draw' || targetId === 'draw' || dragId === 'base' || targetId === 'base') return
-    const all = [...S.layers, ...S.textLayers, ...S.shapeLayers], drag = all.find(o => o.id === dragId), target = all.find(o => o.id === targetId)
-    if (!drag || !target) return
-    saveSnapshot(); const z = drag.z; drag.z = target.z; target.z = z; sortLayersByZ(); reorderLayerCanvas(); renderObjects(); renderLayerPanel()
+    if (!dragId || !targetId || dragId === targetId || dragId === 'base' || targetId === 'base') return
+    const all = [...S.layers.map(obj => ({ kind: 'bitmap', obj })), ...allObjects()]
+      .sort((a, b) => (a.obj.z || 0) - (b.obj.z || 0))
+    const from = all.findIndex(item => item.obj.id === dragId)
+    let to = all.findIndex(item => item.obj.id === targetId)
+    if (from < 0 || to < 0) return
+    const [moved] = all.splice(from, 1)
+    to = all.findIndex(item => item.obj.id === targetId)
+    all.splice(to, 0, moved)
+    saveSnapshot()
+    all.forEach((item, index) => { item.obj.z = index })
+    reorderLayerCanvas()
+    sortLayersByZ()
+    renderObjects()
+    renderLayerPanel()
   }
 
   function bindLayerPanelEvents() {
@@ -836,6 +872,29 @@ function setActiveLayer(id) {
           renderObjects()
           renderLayerPanel()
         }
+      })
+    })
+
+    // 图层颜色与边框粗细：修改后立即刷新画布和面板。
+    list.querySelectorAll('.iwb-layer-color').forEach(input => {
+      input.addEventListener('mousedown', (e) => e.stopPropagation())
+      input.addEventListener('input', (e) => {
+        e.stopPropagation()
+        const id = input.dataset.colorId
+        const type = input.dataset.colorType
+        const obj = type === 'bitmap' ? S.layers.find(l => l.id === id) : S.shapeLayers.find(s => s.id === id)
+        if (obj) { obj.color = input.value; S.color = input.value; updateColorUI(); renderObjects(); renderLayerPanel(); S.pickerComposite = null }
+      })
+    })
+    list.querySelectorAll('.iwb-layer-width').forEach(input => {
+      input.addEventListener('mousedown', (e) => e.stopPropagation())
+      input.addEventListener('input', (e) => {
+        e.stopPropagation()
+        const id = input.dataset.widthId
+        const type = input.dataset.widthType
+        const value = clamp(parseInt(input.value, 10) || 1, 1, 300)
+        const obj = type === 'bitmap' ? S.layers.find(l => l.id === id) : S.shapeLayers.find(s => s.id === id)
+        if (obj) { obj.lineWidth = value; if (type === 'shape') obj.lw = value; else S.brushSize = value; renderObjects(); updateBrushParamUI(); renderLayerPanel() }
       })
     })
 
@@ -920,14 +979,15 @@ function setActiveLayer(id) {
     S.strokeCanvas.width = S.imgW
     S.strokeCanvas.height = S.imgH
     S.strokeCanvas.style.display = 'none'
-    S.overlayPad = Math.max(32, Math.ceil(Math.max(S.imgW, S.imgH) * 0.08))
+    // 裁剪越界区域属于交互工作区，不改变图片本身的画布尺寸。
+    S.overlayPad = Math.max(96, Math.ceil(Math.max(S.imgW, S.imgH) * 0.18))
     S.overlayCanvas.width = S.imgW + S.overlayPad * 2
     S.overlayCanvas.height = S.imgH + S.overlayPad * 2
     S.overlayCtx.setTransform(1, 0, 0, 1, S.overlayPad, S.overlayPad)
 
     // 创建图层 1: 原图
     const baseCanvas = createLayerCanvas()
-    const baseCtx = baseCanvas.getContext('2d')
+    const baseCtx = baseCanvas.getContext('2d', { willReadFrequently: true })
     baseCtx.clearRect(0, 0, S.imgW, S.imgH)
     baseCtx.drawImage(img, 0, 0)
     S.layers.push({
@@ -943,7 +1003,7 @@ function setActiveLayer(id) {
 
     // 创建图层 2: 画笔标注（空透明层）
     const drawCanvas = createLayerCanvas()
-    const drawCtx = drawCanvas.getContext('2d')
+    const drawCtx = drawCanvas.getContext('2d', { willReadFrequently: true })
     drawCtx.clearRect(0, 0, S.imgW, S.imgH)
     S.layers.push({
       id: 'draw',
@@ -955,6 +1015,8 @@ function setActiveLayer(id) {
        locked: false,
       transformable: true,
       x: 0, y: 0, w: S.imgW, h: S.imgH,
+      color: S.color,
+      lineWidth: S.brushSize,
       z: 1
     })
 
@@ -999,9 +1061,15 @@ function setActiveLayer(id) {
     S.textCanvas.style.width = S.strokeCanvas.style.width = w + 'px'
     S.textCanvas.style.height = S.strokeCanvas.style.height = h + 'px'
     syncOverlayCanvas()
+    const scale = S.imgW ? (S.fitW * S.zoom) / S.imgW : 1
+    if (S.transparencyGrid) {
+      S.transparencyGrid.style.left = Math.round((S.overlayPad || 0) * scale) + 'px'
+      S.transparencyGrid.style.top = Math.round((S.overlayPad || 0) * scale) + 'px'
+      S.transparencyGrid.style.width = w + 'px'
+      S.transparencyGrid.style.height = h + 'px'
+    }
     // 显式固定 stack 尺寸，保证统一坐标基准始终可测量，新增/隐藏图层不会触发布局偏移。
     const pad = S.overlayPad || 0
-    const scale = S.imgW ? (S.fitW * S.zoom) / S.imgW : 1
     S.canvasStack.style.width = Math.round((S.imgW + pad * 2) * scale) + 'px'
     S.canvasStack.style.height = Math.round((S.imgH + pad * 2) * scale) + 'px'
     const layerOffset = Math.round(pad * scale)
@@ -1205,6 +1273,7 @@ function setActiveLayer(id) {
     for (const layer of S.layers) {
       if (layer.id !== 'base') {
         layer.ctx.clearRect(0, 0, S.imgW, S.imgH)
+        if (layer.sourceCanvas) layer.sourceCanvas.getContext('2d').clearRect(0, 0, layer.sourceCanvas.width, layer.sourceCanvas.height)
       }
     }
     S.history = []
@@ -1306,11 +1375,44 @@ function setActiveLayer(id) {
     S.strokeCanvas.style.opacity = S.brushOpacity
   }
 
+  function eraseSegment(x1, y1, x2, y2) {
+    const ctx = getActiveCtx()
+    if (!ctx) return
+    ctx.save()
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.globalAlpha = S.brushOpacity
+    ctx.lineWidth = Math.max(1, S.brushSize)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x1, y1)
+    ctx.lineTo(x2, y2)
+    ctx.stroke()
+    ctx.restore()
+    const active = getActiveLayer()
+    if (active && active.id === 'draw' && active.sourceCanvas) {
+      const sourceCtx = active.sourceCanvas.getContext('2d', { willReadFrequently: true })
+      sourceCtx.save()
+      sourceCtx.globalCompositeOperation = 'destination-out'
+      sourceCtx.globalAlpha = S.brushOpacity
+      sourceCtx.lineWidth = Math.max(1, S.brushSize) * active.w / Math.max(S.imgW, 1)
+      sourceCtx.lineCap = 'round'
+      sourceCtx.beginPath()
+      sourceCtx.moveTo((x1 - active.x) * S.imgW / active.w, (y1 - active.y) * S.imgW / active.w)
+      sourceCtx.lineTo((x2 - active.x) * S.imgW / active.w, (y2 - active.y) * S.imgW / active.w)
+      sourceCtx.stroke()
+      sourceCtx.restore()
+    }
+    S.pickerComposite = null
+    renderObjects()
+  }
+
   /** 开始一笔 */
   function beginStroke() {
     S.strokeCanvas.width = S.imgW
     S.strokeCanvas.height = S.imgH
     S.strokeCtx.clearRect(0, 0, S.imgW, S.imgH)
+    // 橡皮擦直接修改活跃图层，不显示独立轨迹层。
     S.strokeCanvas.style.display = S.tool === 'eraser' ? 'none' : 'block'
     S.strokeCanvas.style.opacity = S.brushOpacity
   }
@@ -1329,7 +1431,7 @@ function setActiveLayer(id) {
     S.strokeCanvas.style.display = 'none'
     const active = getActiveLayer()
     if (active && active.id === 'draw' && active.sourceCanvas && active.w > 0 && active.h > 0) {
-      const sourceCtx = active.sourceCanvas.getContext('2d')
+      const sourceCtx = active.sourceCanvas.getContext('2d', { willReadFrequently: true })
       sourceCtx.save()
       sourceCtx.globalCompositeOperation = S.tool === 'eraser' ? 'destination-out' : 'source-over'
       sourceCtx.globalAlpha = S.brushOpacity
@@ -1357,6 +1459,13 @@ function setActiveLayer(id) {
       const rx = Math.min(s.x1, s.x2), ry = Math.min(s.y1, s.y2), rw = Math.abs(s.x2 - s.x1), rh = Math.abs(s.y2 - s.y1)
       if (s.fill) { ctx.fillStyle = s.color; ctx.fillRect(rx, ry, rw, rh) }
       ctx.strokeRect(rx, ry, rw, rh)
+    } else if (s.type === 'circle') {
+      const rx = Math.min(s.x1, s.x2), ry = Math.min(s.y1, s.y2)
+      const rw = Math.abs(s.x2 - s.x1), rh = Math.abs(s.y2 - s.y1)
+      ctx.beginPath()
+      ctx.ellipse(rx + rw / 2, ry + rh / 2, Math.max(1, rw / 2), Math.max(1, rh / 2), 0, 0, Math.PI * 2)
+      if (s.fill) { ctx.fillStyle = s.color; ctx.fill() }
+      ctx.stroke()
     } else {
       ctx.fillStyle = s.color
       ctx.beginPath()
@@ -1905,6 +2014,18 @@ function setActiveLayer(id) {
   function hitShapeObj(pos, s, includeInterior) {
     if (s.visible === false) return false
     if (s.type === 'pen') { const pts = s.pts || []; for (let i = 1; i < pts.length; i++) if (distToSeg(pos.x, pos.y, pts[i-1].x, pts[i-1].y, pts[i].x, pts[i].y) <= Math.max(8 / S.zoom, s.lw)) return true; if (s.closed && pts.length > 2 && distToSeg(pos.x, pos.y, pts[pts.length-1].x, pts[pts.length-1].y, pts[0].x, pts[0].y) <= Math.max(8 / S.zoom, s.lw)) return true; if (!includeInterior) return false; const b = shapeBounds(s); return pos.x >= b.x && pos.x <= b.x + b.w && pos.y >= b.y && pos.y <= b.y + b.h }
+    if (s.type === 'circle') {
+      const b = shapeBounds(s)
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2
+      const rx = Math.max(0.5, b.w / 2), ry = Math.max(0.5, b.h / 2)
+      const nx = (pos.x - cx) / rx, ny = (pos.y - cy) / ry
+      const value = nx * nx + ny * ny
+      if (includeInterior || s.fill) return value <= 1
+      const edgeTolerance = Math.max(4 / S.zoom, s.lw / Math.min(rx, ry))
+      const outer = (1 + edgeTolerance) * (1 + edgeTolerance)
+      const inner = Math.max(0, 1 - edgeTolerance) * Math.max(0, 1 - edgeTolerance)
+      return value >= inner && value <= outer
+    }
     if (s.type === 'rect') {
       const b = shapeBounds(s)
       const pad = Math.max(4, s.lw * 1.5)
@@ -1996,6 +2117,15 @@ function setActiveLayer(id) {
   }
 
   function shapeHandlePoints(s) {
+    if (s.type === 'circle') {
+      const b = shapeBounds(s)
+      return {
+        nw: [b.x, b.y], ne: [b.x + b.w, b.y],
+        sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h],
+        n: [b.x + b.w / 2, b.y], s: [b.x + b.w / 2, b.y + b.h],
+        e: [b.x + b.w, b.y + b.h / 2], w: [b.x, b.y + b.h / 2]
+      }
+    }
     if (s.type === 'rect') {
       const b = shapeBounds(s)
       return {
@@ -2013,10 +2143,13 @@ function setActiveLayer(id) {
     const s = getSelectedShape()
     if (!s) return null
     const pts = shapeHandlePoints(s)
-    const R = 12 / S.zoom
+    const offset = 8 / S.zoom
+    const R = Math.max(16 / S.zoom, 10)
     let best = null, bestDist = 1e9
     for (const name in pts) {
-      const dx = pos.x - pts[name][0], dy = pos.y - pts[name][1]
+      const px = pts[name][0] + (name.includes('w') ? -offset : name.includes('e') ? offset : 0)
+      const py = pts[name][1] + (name.includes('n') ? -offset : name.includes('s') ? offset : 0)
+      const dx = pos.x - px, dy = pos.y - py
       const d = dx * dx + dy * dy
       if (d < R * R && d < bestDist) { bestDist = d; best = name }
     }
@@ -2024,44 +2157,75 @@ function setActiveLayer(id) {
   }
 
   function applyShapeHandle(s, handle, pos) {
-    if (s.type === 'pen' && handle && handle[0] === 'p') { const i = parseInt(handle.slice(1), 10); if (s.pts && s.pts[i]) { s.pts[i].x = clamp(pos.x, 0, S.imgW); s.pts[i].y = clamp(pos.y, 0, S.imgH) }; return }
+    if (s.type === 'pen' && handle && handle[0] === 'p') {
+      const i = parseInt(handle.slice(1), 10)
+      if (s.pts && s.pts[i]) { s.pts[i].x = clamp(pos.x, 0, S.imgW); s.pts[i].y = clamp(pos.y, 0, S.imgH) }
+      return
+    }
     if (s.type === 'arrow') {
-      if (handle === 'start') {
-        s.x1 = clamp(pos.x, 0, S.imgW)
-        s.y1 = clamp(pos.y, 0, S.imgH)
-      } else {
-        s.x2 = clamp(pos.x, 0, S.imgW)
-        s.y2 = clamp(pos.y, 0, S.imgH)
-      }
+      if (handle === 'start') { s.x1 = clamp(pos.x, 0, S.imgW); s.y1 = clamp(pos.y, 0, S.imgH) }
+      else { s.x2 = clamp(pos.x, 0, S.imgW); s.y2 = clamp(pos.y, 0, S.imgH) }
       return
     }
     const b = shapeBounds(s)
-    let nx = b.x, ny = b.y, nw = b.w, nh = b.h
-    if (handle.includes('e')) nw = clamp(pos.x - b.x, 2, S.imgW - b.x)
-    if (handle.includes('s')) nh = clamp(pos.y - b.y, 2, S.imgH - b.y)
-    if (handle.includes('w')) { const r = b.x + b.w; nx = clamp(pos.x, 0, r - 2); nw = r - nx }
-    if (handle.includes('n')) { const bo = b.y + b.h; ny = clamp(pos.y, 0, bo - 2); nh = bo - ny }
-    s.x1 = nx; s.y1 = ny; s.x2 = nx + nw; s.y2 = ny + nh
+    const offset = 8 / S.zoom
+    const adjusted = { x: pos.x - (handle.includes('w') ? -offset : handle.includes('e') ? offset : 0), y: pos.y - (handle.includes('n') ? -offset : handle.includes('s') ? offset : 0) }
+    let x1 = b.x, y1 = b.y, x2 = b.x + b.w, y2 = b.y + b.h
+    if (handle.includes('e')) x2 = Math.max(x1 + 2, adjusted.x)
+    if (handle.includes('s')) y2 = Math.max(y1 + 2, adjusted.y)
+    if (handle.includes('w')) x1 = Math.min(x2 - 2, adjusted.x)
+    if (handle.includes('n')) y1 = Math.min(y2 - 2, adjusted.y)
+    s.x1 = x1; s.y1 = y1; s.x2 = x2; s.y2 = y2
+  }
+
+  function drawPenPathPreview() {
+    const path = S.penPath
+    if (!path || !path.pts || !path.pts.length) return
+    const ctx = S.overlayCtx
+    const pts = path.pts.slice()
+    const first = pts[0]
+    const nearStart = path.preview && pts.length >= 3 && Math.hypot(path.preview.x - first.x, path.preview.y - first.y) <= Math.max(12 / S.zoom, S.brushSize * 1.5)
+    if (path.preview) pts.push(nearStart ? first : path.preview)
+    ctx.save()
+    ctx.strokeStyle = S.color
+    ctx.fillStyle = nearStart ? 'rgba(232, 167, 53, 0.18)' : 'transparent'
+    ctx.lineWidth = Math.max(2, S.brushSize) / S.zoom
+    ctx.setLineDash([8 / S.zoom, 5 / S.zoom])
+    ctx.beginPath()
+    ctx.moveTo(pts[0].x, pts[0].y)
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+    if (nearStart) { ctx.closePath(); ctx.fill() }
+    ctx.stroke()
+    ctx.setLineDash([])
+    for (let i = 0; i < path.pts.length; i++) {
+      const point = path.pts[i]
+      ctx.beginPath()
+      ctx.fillStyle = i === 0 && nearStart ? '#e8a735' : '#ffffff'
+      ctx.strokeStyle = S.color
+      ctx.arc(point.x, point.y, Math.max(4, 6 / S.zoom), 0, Math.PI * 2)
+      ctx.fill(); ctx.stroke()
+    }
+    ctx.restore()
   }
 
   function drawShapeSelection(s) {
     const octx = S.overlayCtx
     const b = shapeBounds(s)
+    const offset = 8 / S.zoom
     octx.save()
     octx.strokeStyle = '#e8a735'
     octx.lineWidth = 1.5 / S.zoom
     octx.setLineDash([6 / S.zoom, 3 / S.zoom])
-    octx.strokeRect(b.x - 2 / S.zoom, b.y - 2 / S.zoom, b.w + 4 / S.zoom, b.h + 4 / S.zoom)
+    octx.strokeRect(b.x - offset, b.y - offset, b.w + offset * 2, b.h + offset * 2)
     octx.setLineDash([])
-    const hs = 4 / S.zoom
+    const hs = 6 / S.zoom
     octx.fillStyle = '#ffffff'
     octx.strokeStyle = '#e8a735'
     const pts = shapeHandlePoints(s)
     for (const name in pts) {
-      octx.beginPath()
-      octx.rect(pts[name][0] - hs, pts[name][1] - hs, hs * 2, hs * 2)
-      octx.fill()
-      octx.stroke()
+      const px = pts[name][0] + (name.includes('w') ? -offset : name.includes('e') ? offset : 0)
+      const py = pts[name][1] + (name.includes('n') ? -offset : name.includes('s') ? offset : 0)
+      octx.beginPath(); octx.rect(px - hs, py - hs, hs * 2, hs * 2); octx.fill(); octx.stroke()
     }
     octx.restore()
   }
@@ -2096,6 +2260,7 @@ function setActiveLayer(id) {
     }
     if (tempShape) drawShape(ctx, tempShape)
     clearOverlay()
+    if (S.tool === 'pen' && S.penPath && S.penPath.pts.length) drawPenPathPreview()
     // 图片放置模式优先显示放置预览
     if (S.placingImage) {
       drawPlacementPreview()
@@ -2403,30 +2568,24 @@ function setActiveLayer(id) {
       S.isDrawing = true
       saveSnapshot()
       beginStroke()
-      strokeSegment(pos.x, pos.y, pos.x, pos.y)
+      eraseSegment(pos.x, pos.y, pos.x, pos.y)
     } else if (S.tool === 'pen') {
-      if (!S.penPath) S.penPath = { pts: [], preview: null }
-      S.penPath.pts.push({ x: clamp(pos.x, 0, S.imgW), y: clamp(pos.y, 0, S.imgH) })
-      renderObjects({ id: 'pen-preview', type: 'pen', pts: S.penPath.pts.concat(S.penPath.preview ? [S.penPath.preview] : []), closed: false, color: S.color, lw: Math.max(2, S.brushSize), fill: false, opacity: 1, visible: true })
-      return
-    } else if (S.tool === 'rect' || S.tool === 'arrow') {
-      const handle = hitShapeHandle(pos)
-      if (handle) { beginShapeHandleDrag(handle, pos); return }
-      const hit = hitShapeLayer(pos)
-      if (hit) {
-        S.selectedShapeId = hit.id
-        if (hit.locked) { renderObjects(); renderLayerPanel(); return }
-        S.shapeDrag = {
-          mode: 'move',
-          start: pos,
-          shape: { ...hit },
-          pending: snapshotState()
-        }
-        renderObjects()
-        renderLayerPanel()
-        return
+      if (!S.penPath) S.penPath = { pts: [], preview: null, closed: false }
+      const point = { x: clamp(pos.x, 0, S.imgW), y: clamp(pos.y, 0, S.imgH) }
+      const first = S.penPath.pts[0]
+      if (first && S.penPath.pts.length >= 3 && Math.hypot(point.x - first.x, point.y - first.y) <= Math.max(12 / S.zoom, S.brushSize * 1.5)) {
+        S.penPath.closed = true
+        S.penPath.nearStart = true
+        S.penPath.preview = null
+        commitPenPath()
+      } else {
+        S.penPath.pts.push(point)
+        renderObjects({ id: 'pen-preview', type: 'pen', pts: S.penPath.pts.concat(S.penPath.preview ? [S.penPath.preview] : []), closed: false, color: S.color, lw: Math.max(2, S.brushSize), fill: false, opacity: 1, visible: true })
       }
-      if (S.selectedShapeId) { S.selectedShapeId = null; renderObjects(); renderLayerPanel() }
+      return
+    } else if (S.tool === 'rect' || S.tool === 'arrow' || S.tool === 'circle') {
+      // 绘图工具始终从鼠标位置开始新建，已有图形只由选择工具负责选中/移动。
+      S.selectedShapeId = null
       S.isDrawing = true
     }
   }
@@ -2511,13 +2670,16 @@ function setActiveLayer(id) {
       S.startY = pos.y
       drawToolRing(pos)
     } else if (S.tool === 'eraser') {
-      strokeSegment(S.startX, S.startY, pos.x, pos.y)
+      eraseSegment(S.startX, S.startY, pos.x, pos.y)
       S.startX = pos.x
       S.startY = pos.y
       drawToolRing(pos)
     } else if (S.tool === 'pen') {
-      if (S.penPath) { S.penPath.preview = pos; renderObjects({ id: 'pen-preview', type: 'pen', pts: S.penPath.pts.concat([pos]), closed: false, color: S.color, lw: Math.max(2, S.brushSize), fill: false, opacity: 1, visible: true }) }
-    } else if (S.tool === 'rect' || S.tool === 'arrow') {
+      if (S.penPath) { S.penPath.preview = pos; const first = S.penPath.pts[0]
+        const nearStart = first && S.penPath.pts.length >= 3 && Math.hypot(pos.x - first.x, pos.y - first.y) <= Math.max(12 / S.zoom, S.brushSize * 1.5)
+        S.penPath.nearStart = !!nearStart
+        renderObjects() }
+    } else if (S.tool === 'rect' || S.tool === 'arrow' || S.tool === 'circle') {
       const temp = {
         id: 'temp',
         type: S.tool,
@@ -2525,7 +2687,8 @@ function setActiveLayer(id) {
         x2: pos.x, y2: pos.y,
         color: S.color,
         lw: Math.max(2, S.brushSize),
-        fill: S.tool === 'rect' ? !!S.rectFill : false,
+        lineWidth: Math.max(2, S.brushSize),
+        fill: S.tool === 'rect' || S.tool === 'circle' ? !!S.rectFill : false,
         opacity: 1,
         visible: true
       }
@@ -2643,9 +2806,9 @@ function setActiveLayer(id) {
       } else {
         clearOverlay()
       }
-    } else if (S.tool === 'rect' || S.tool === 'arrow') {
+    } else if (S.tool === 'rect' || S.tool === 'arrow' || S.tool === 'circle') {
       const len = Math.hypot(pos.x - S.startX, pos.y - S.startY)
-      const ok = S.tool === 'rect'
+      const ok = S.tool === 'rect' || S.tool === 'circle'
         ? (Math.abs(pos.x - S.startX) > 2 && Math.abs(pos.y - S.startY) > 2)
         : len > 3
       if (ok) {
@@ -2657,7 +2820,7 @@ function setActiveLayer(id) {
           x2: pos.x, y2: pos.y,
           color: S.color,
           lw: Math.max(2, S.brushSize),
-          fill: S.tool === 'rect' ? !!S.rectFill : false,
+          fill: S.tool === 'rect' || S.tool === 'circle' ? !!S.rectFill : false,
           opacity: 1,
           visible: true,
        locked: false,
@@ -2746,6 +2909,24 @@ function setActiveLayer(id) {
       if (on) matchPreset = true
       s.classList.toggle('active', on)
     })
+    const panelHex = el.querySelector('.iwb-editor-color-hex')
+    const panelInput = el.querySelector('.iwb-editor-color-panel-input')
+    const hexInput = el.querySelector('.iwb-editor-color-hex-input')
+    if (panelInput) panelInput.value = S.color
+    if (hexInput && document.activeElement !== hexInput) hexInput.value = S.color.toUpperCase()
+    el.querySelectorAll('.iwb-editor-color-panel-swatch').forEach(sw => sw.classList.toggle('active', (sw.dataset.panelColor || '').toLowerCase() === S.color.toLowerCase()))
+    if (panelHex) panelHex.textContent = S.color.toUpperCase()
+    const rgb = hexToRgb(S.color)
+    const max = Math.max(rgb.r, rgb.g, rgb.b) / 255, min = Math.min(rgb.r, rgb.g, rgb.b) / 255
+    const d = max - min
+    let h = 0
+    if (d) { if (max === rgb.r / 255) h = 60 * (((rgb.g - rgb.b) / 255 / d) % 6); else if (max === rgb.g / 255) h = 60 * ((rgb.b - rgb.r) / 255 / d + 2); else h = 60 * ((rgb.r - rgb.g) / 255 / d + 4) }
+    if (h < 0) h += 360
+    const sv = el.querySelector('.iwb-color-sv'), hue = el.querySelector('.iwb-color-hue')
+    if (sv) sv.style.backgroundColor = `hsl(${h} 100% 50%)`
+    if (hue) hue.dataset.hue = h
+    const hueMarker = hue && hue.querySelector('span'); if (hueMarker) hueMarker.style.top = (h / 360 * 100) + '%'
+    const svMarker = sv && sv.querySelector('span'); if (svMarker) { const sat = max ? d / max : 0; svMarker.style.left = (sat * 100) + '%'; svMarker.style.top = ((1 - max) * 100) + '%' }
     const custom = el.querySelector('.iwb-editor-color-custom')
     if (custom) {
       custom.classList.toggle('active', !matchPreset)
@@ -2756,6 +2937,7 @@ function setActiveLayer(id) {
 
   function updateBrushUI() {
     const slider = el.querySelector('.iwb-editor-brush-size')
+    if (!slider) return
     slider.value = S.brushSize
     const num = el.querySelector('.iwb-editor-brush-num')
     if (num && document.activeElement !== num) num.value = S.brushSize
@@ -2806,7 +2988,7 @@ function setActiveLayer(id) {
         // 选择态只在选择工具中保留；切换到其他工具即退出图片选择
         if (S.tool !== 'select') S.selectedLayerId = null
         if (S.tool !== 'text' && S.tool !== 'select') S.selectedTextId = null
-        if (S.tool !== 'rect' && S.tool !== 'arrow' && S.tool !== 'pen' && S.tool !== 'select') S.selectedShapeId = null
+        if (S.tool !== 'rect' && S.tool !== 'circle' && S.tool !== 'arrow' && S.tool !== 'pen' && S.tool !== 'select') S.selectedShapeId = null
         S.bitmapDrag = null
         S.pickerComposite = null
         hidePickerTip()
@@ -2824,6 +3006,25 @@ function setActiveLayer(id) {
       })
     })
 
+    // 独立颜色面板：颜色选择后同步当前工具颜色。
+    const setPanelColor = (color) => applyColorChange(color)
+    const panelInput = el.querySelector('.iwb-editor-color-panel-input')
+    const panelHexInput = el.querySelector('.iwb-editor-color-hex-input')
+    if (panelInput) panelInput.addEventListener('input', () => setPanelColor(panelInput.value))
+    if (panelHexInput) panelHexInput.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(panelHexInput.value)) setPanelColor(panelHexInput.value) })
+    el.querySelectorAll('.iwb-editor-color-panel-swatch').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); setPanelColor(btn.dataset.panelColor) }))
+    const sv = el.querySelector('.iwb-color-sv')
+    const hue = el.querySelector('.iwb-color-hue')
+    let hueValue = 0
+    const hsvToHex = (h, sat, val) => {
+      const c = val * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = val - c
+      let r = 0, g = 0, b = 0
+      if (h < 60) { r = c; g = x } else if (h < 120) { r = x; g = c } else if (h < 180) { g = c; b = x } else if (h < 240) { g = x; b = c } else if (h < 300) { r = x; b = c } else { r = c; b = x }
+      return rgbToHex(Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255))
+    }
+    const pick = (target, e) => { const r = target.getBoundingClientRect(); const x = clamp((e.clientX-r.left)/r.width,0,1); const y = clamp((e.clientY-r.top)/r.height,0,1); setPanelColor(target === hue ? hsvToHex(hueValue,1,1) : hsvToHex(hueValue,x,1-y)) }
+    if (sv) { sv.addEventListener('pointerdown', e => { sv.setPointerCapture(e.pointerId); pick(sv,e) }); sv.addEventListener('pointermove', e => { if (e.buttons) pick(sv,e) }) }
+    if (hue) { hue.addEventListener('pointerdown', e => { const r=hue.getBoundingClientRect(); hueValue=clamp((e.clientY-r.top)/r.height,0,1)*360; setPanelColor(hsvToHex(hueValue,1,1)) }) }
     // 比例约束按钮
     el.querySelectorAll('.iwb-editor-constraint-btn[data-ratio]').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -2872,9 +3073,7 @@ function setActiveLayer(id) {
       S.rectFill = !S.rectFill
       updateFillUI()
       const sh = getSelectedShape()
-      if (sh && sh.type === 'rect' &&
-          (S.tool === 'rect' || S.tool === 'select') &&
-          !!sh.fill !== S.rectFill) {
+      if (sh && (sh.type === 'rect' || sh.type === 'circle') && (S.tool === 'rect' || S.tool === 'circle' || S.tool === 'select')) {
         saveSnapshot()
         sh.fill = S.rectFill
         renderObjects()
@@ -2890,16 +3089,27 @@ function setActiveLayer(id) {
     // 笔触（滑杆 + 数值输入框双向同步）
     const slider = el.querySelector('.iwb-editor-brush-size')
     const brushNum = el.querySelector('.iwb-editor-brush-num')
-    slider.addEventListener('input', () => {
-      S.brushSize = parseInt(slider.value, 10)
-      if (document.activeElement !== brushNum) brushNum.value = S.brushSize
+    const syncBrushSize = (value) => {
+      const v = clamp(parseInt(value, 10) || 1, 1, 300)
+      S.brushSize = v
+      slider.value = v
+      if (brushNum && document.activeElement !== brushNum) brushNum.value = v
+      const panelRange = el.querySelector('.iwb-editor-panel-width-range')
+      const panelNum = el.querySelector('.iwb-editor-panel-width-num')
+      if (panelRange) panelRange.value = v
+      if (panelNum && document.activeElement !== panelNum) panelNum.value = v
+    }
+    el.querySelectorAll('.iwb-editor-brush-preset').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => e.stopPropagation())
+      btn.addEventListener('click', () => syncBrushSize(btn.dataset.brushSize))
     })
+    slider.addEventListener('input', () => syncBrushSize(slider.value))
+    slider.addEventListener('change', () => syncBrushSize(slider.value))
     if (brushNum) {
       brushNum.addEventListener('mousedown', (e) => e.stopPropagation())
       brushNum.addEventListener('input', () => {
         const v = clamp(parseInt(brushNum.value, 10) || 1, 1, 300)
-        S.brushSize = v
-        slider.value = v
+        syncBrushSize(v)
       })
       brushNum.addEventListener('blur', () => { brushNum.value = S.brushSize })
     }
@@ -3017,7 +3227,7 @@ function setActiveLayer(id) {
   function commitPenPath() {
     if (!S.penPath || S.penPath.pts.length < 2) { S.penPath = null; renderObjects(); return }
     saveSnapshot()
-    const shape = { id: 's' + Date.now() + Math.floor(Math.random() * 1000), type: 'pen', pts: S.penPath.pts.slice(), closed: false, color: S.color, lw: Math.max(2, S.brushSize), fill: false, opacity: 1, visible: true, locked: false, z: ++S.zCounter }
+    const shape = { id: 's' + Date.now() + Math.floor(Math.random() * 1000), type: 'pen', pts: S.penPath.pts.slice(), closed: !!S.penPath.closed, color: S.color, lw: Math.max(2, S.brushSize), fill: !!S.penPath.closed, opacity: 1, visible: true, locked: false, z: ++S.zCounter }
     S.shapeLayers.push(shape); S.selectedShapeId = shape.id; S.penPath = null; renderObjects(); renderLayerPanel()
   }
 
@@ -3107,7 +3317,7 @@ function setActiveLayer(id) {
       return
     }
     if (S.tool === 'pen') { S.drawCanvasCursor('crosshair'); return }
-    if (S.tool === 'rect' || S.tool === 'arrow') {
+    if (S.tool === 'rect' || S.tool === 'arrow' || S.tool === 'circle') {
       const h = hitShapeHandle(p)
       if (h) {
         const sh = getSelectedShape()
@@ -3115,7 +3325,7 @@ function setActiveLayer(id) {
         else S.drawCanvasCursor('move')
         return
       }
-      S.drawCanvasCursor(hitShapeLayer(p) ? 'move' : 'crosshair')
+      S.drawCanvasCursor('crosshair')
       return
     }
     S.drawCanvasCursor('crosshair')

@@ -186,7 +186,37 @@
   padding: 10px 16px;
   background: #181825;
   border-bottom: 1px solid #313244;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+.iwb-editor-header > .iwb-editor-tools {
+  position: absolute;
+  left: 12px;
+  top: 68px;
+  width: 44px;
+  flex-direction: column;
+  padding: 6px;
+  background: #181825;
+  border: 1px solid #313244;
+  border-radius: 8px;
+  z-index: 20;
+}
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-action { position: static; }
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-action[data-action="undo"],
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-action[data-action="redo"],
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-action[data-action="reset"],
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-action[data-action="restore"] {
+  position: absolute;
+  top: -54px;
+  left: auto;
+}
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-action[data-action="undo"] { right: 154px; }
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-action[data-action="redo"] { right: 118px; }
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-action[data-action="reset"] { right: 82px; }
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-action[data-action="restore"] { right: 46px; }
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-divider {
+  width: 24px;
+  height: 1px;
+  margin: 4px 0;
 }
 
 .iwb-editor-title {
@@ -233,9 +263,15 @@
 .iwb-editor-params {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-left: auto;
+  gap: 10px;
+  margin-left: 12px;
+  justify-content: flex-start;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
 }
+.iwb-editor-params .iwb-editor-zoom { margin-left: auto; order: 20; }
+.iwb-editor-top-colors { display: none; }
 
 .iwb-editor-colors { display: flex; gap: 4px; }
 .iwb-editor-color {
@@ -394,7 +430,9 @@
   background: #11111b;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: visible; /* 裁剪框允许显示在图片边界外；编辑区仍由模态层裁切 */
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden; /* 裁剪框允许显示在图片边界外；编辑区仍由模态层裁切 */
   padding: 12px;
 }
 
@@ -405,15 +443,15 @@
   display: block;
   width: 0;
   height: 0;
-  /* 棋盘格透明背景示意 */
-  background: #fff;
+  /* 仅图片工作区显示透明棋盘格，外围裁剪工作区保持纯色。 */
+  background-color: #d6d6d6;
   background-image:
-    linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
-    linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
-    linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+    linear-gradient(45deg, #b8b8b8 25%, transparent 25%),
+    linear-gradient(-45deg, #b8b8b8 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #b8b8b8 75%),
+    linear-gradient(-45deg, transparent 75%, #b8b8b8 75%);
   background-size: 20px 20px;
-  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
 }
 
 .iwb-editor-base, .iwb-editor-draw, .iwb-editor-text, .iwb-editor-crop-overlay {
@@ -664,8 +702,8 @@
 /* ==================== 图层面板 ==================== */
 
 .iwb-editor-layer-panel {
-  width: 240px;
-  min-width: 240px;
+  width: 290px;
+  min-width: 290px;
   background: #181825;
   border-left: 1px solid #313244;
   display: flex;
@@ -733,7 +771,10 @@
 .iwb-layer-item.hidden { opacity: 0.5; }
 .iwb-layer-item[draggable="true"] { cursor: grab; }
 .iwb-layer-item.dragging { opacity: 0.45; }
-.iwb-layer-item.drop-target { outline: 1px dashed #e8a735; }
+.iwb-layer-item.drop-target { outline: 1px dashed #e8a735; background: rgba(232, 167, 53, 0.16); }
+.iwb-layer-color { width: 22px; height: 22px; padding: 0; border: 1px solid #45475a; border-radius: 50%; background: transparent; cursor: pointer; flex: 0 0 auto; }
+.iwb-layer-width { width: 42px; height: 22px; padding: 2px 3px; border: 1px solid #45475a; border-radius: 4px; background: #1e1e2e; color: #e8a735; font-size: 11px; text-align: center; flex: 0 0 auto; }
+.iwb-layer-width:focus { outline: none; border-color: #e8a735; }
 
 .iwb-layer-vis {
   background: none;
@@ -806,3 +847,179 @@
 .iwb-layer-icon svg { display: block; }
 .iwb-layer-lock svg { display: block; }
 .iwb-layer-del svg { display: block; }
+
+/* 独立 PS 风格颜色面板 */
+.iwb-editor-color-panel { padding: 12px; border-bottom: 1px solid #313244; background: #202033; }
+.iwb-editor-color-panel-title { color: #cdd6f4; font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+.iwb-editor-color-panel-main { display: flex; align-items: center; gap: 10px; }
+.iwb-editor-color-current { width: 52px; height: 52px; border: 2px solid #cdd6f4; border-radius: 6px; overflow: hidden; display: block; background: #ff4444; }
+.iwb-editor-color-panel-input { width: 100%; height: 100%; padding: 0; border: 0; cursor: pointer; opacity: 0; }
+.iwb-editor-color-panel-values { min-width: 0; flex: 1; }
+.iwb-editor-color-hex { color: #cdd6f4; font: 600 12px monospace; display: block; margin-bottom: 8px; }
+.iwb-editor-color-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.iwb-editor-color-panel-swatch { width: 20px; height: 20px; border: 1px solid #585b70; border-radius: 4px; cursor: pointer; }
+.iwb-editor-color-panel-swatch:hover { transform: scale(1.12); border-color: #fff; }
+.iwb-editor-panel-width { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: #a6adc8; font-size: 11px; }
+.iwb-editor-panel-width-range { flex: 1; min-width: 60px; }
+.iwb-editor-panel-width-num { width: 42px; padding: 3px; background: #313244; color: #e8a735; border: 1px solid #45475a; border-radius: 4px; text-align: center; }
+.iwb-layer-color, .iwb-layer-width { display: none !important; }
+
+/* 顶部独立操作区，避免操作按钮被竖向工具栏裁切 */
+.iwb-editor-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; flex: 0 0 auto; }
+.iwb-editor-actions .iwb-editor-action { position: static !important; }
+.iwb-editor-actions .iwb-editor-action-restore { width: auto; padding: 0 9px; font-size: 12px; }
+
+/* 原图 canvas 只负责绘制像素，透明处透出 stack 的棋盘格。 */
+.iwb-editor-base { background: transparent !important; background-image: none !important; }
+
+/* 透明区域使用 Photoshop 风格的灰色棋盘格，覆盖整个实际图片区域。 */
+.iwb-editor-canvas-stack {
+  background-color: #d6d6d6 !important;
+  background-image:
+    linear-gradient(45deg, #b8b8b8 25%, transparent 25%),
+    linear-gradient(-45deg, #b8b8b8 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #b8b8b8 75%),
+    linear-gradient(-45deg, transparent 75%, #b8b8b8 75%) !important;
+  background-size: 20px 20px !important;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0 !important;
+}
+.iwb-editor-base { background: transparent !important; background-image: none !important; }
+
+/* 顶部参数区必须保持可见且可交互，避免被侧栏定位层覆盖。 */
+.iwb-editor-header { position: relative; min-height: 56px; overflow: visible; }
+.iwb-editor-params { position: relative; z-index: 30; overflow: visible; pointer-events: auto; }
+.iwb-editor-params input, .iwb-editor-params button, .iwb-editor-params label { pointer-events: auto; }
+.iwb-editor-brush-size, .iwb-editor-brush-hardness, .iwb-editor-brush-opacity { min-width: 70px; accent-color: #e8a735; }
+.iwb-editor-brush-num, .iwb-editor-eraser-num { pointer-events: auto; }
+
+/* canvas 的透明像素必须透出 stack 棋盘格，不能被黑色工作区遮住。 */
+.iwb-editor-canvas-stack { isolation: isolate; }
+.iwb-editor-layer-canvas, .iwb-editor-text, .iwb-editor-stroke, .iwb-editor-crop-overlay { background: transparent !important; }
+
+/* 透明棋盘格只覆盖原图的显示矩形，外围裁剪扩展区保持纯色。 */
+.iwb-editor-canvas-stack { background: #11111b !important; background-image: none !important; }
+.iwb-editor-transparency-grid { position: absolute; z-index: 0; pointer-events: none; background-color: #d6d6d6; background-image: linear-gradient(45deg, #b8b8b8 25%, transparent 25%), linear-gradient(-45deg, #b8b8b8 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #b8b8b8 75%), linear-gradient(-45deg, transparent 75%, #b8b8b8 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0; }
+.iwb-editor-layer-canvas, .iwb-editor-stroke, .iwb-editor-text { z-index: 1; }
+.iwb-editor-crop-overlay { z-index: 10; }
+
+/* 画布扩展区不得盖过编辑器外围，图片区域由透明层单独标识。 */
+.iwb-editor-canvas-stack { overflow: visible; max-width: 100%; max-height: 100%; background: #11111b !important; background-image: none !important; }
+.iwb-editor-transparency-grid { z-index: 0; overflow: hidden; }
+.iwb-editor-layer-canvas { z-index: 1; }
+.iwb-editor-stroke { z-index: 4; }
+.iwb-editor-text { z-index: 5; }
+.iwb-editor-crop-overlay { z-index: 10; }
+
+/* 导出操作与缩放同处顶栏，缩放独立靠右。 */
+.iwb-editor-export-actions { display: flex; align-items: center; gap: 6px; margin-left: 10px; flex: 0 0 auto; }
+.iwb-editor-export-actions .iwb-editor-btn { padding: 6px 10px; font-size: 11px; }
+.iwb-editor-footer { display: none !important; }
+.iwb-layer-color, .iwb-layer-width { display: none !important; }
+
+.iwb-editor-export-actions { display: flex; align-items: center; gap: 6px; margin-left: 10px; flex: 0 0 auto; }
+.iwb-editor-export-actions .iwb-editor-btn { padding: 6px 10px; font-size: 11px; }
+.iwb-editor-footer { display: none !important; }
+.iwb-layer-color, .iwb-layer-width { display: none !important; }
+
+/* 顶部七个操作按钮统一文本按钮样式，自适应中文宽度。 */
+.iwb-editor-actions { gap: 6px; }
+.iwb-editor-actions .iwb-editor-action { width: auto; min-width: 72px; height: 32px; padding: 0 12px; gap: 5px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.iwb-editor-actions .iwb-editor-action svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.iwb-editor-export-actions .iwb-editor-btn { min-width: 72px; white-space: nowrap; }
+
+/* 顶部操作按钮统一为纯文本，图标隐藏并保持一致宽度。 */
+.iwb-editor-actions .iwb-editor-action svg { display: none !important; }
+.iwb-editor-actions .iwb-editor-action { min-width: 76px; width: 76px; justify-content: center; background: #3b3d52; color: #cdd6f4; }
+.iwb-editor-actions .iwb-editor-action:hover { background: #50536b; }
+.iwb-editor-actions .iwb-editor-action-restore { background: #3b3d52; color: #cdd6f4; }
+.iwb-editor-actions .iwb-editor-action-restore:hover { background: #50536b !important; }
+
+.iwb-editor-actions .iwb-editor-action svg { display: none !important; }
+.iwb-editor-actions .iwb-editor-action { min-width: 76px; width: 76px; justify-content: center; background: #3b3d52; color: #cdd6f4; }
+.iwb-editor-actions .iwb-editor-action:hover, .iwb-editor-actions .iwb-editor-action-restore:hover { background: #50536b !important; }
+
+.iwb-editor-actions .iwb-editor-action { width: auto; min-width: 76px; padding: 0 12px; gap: 5px; }
+.iwb-editor-actions .iwb-editor-action span { display: inline-block; }
+
+.iwb-editor-actions { margin-left: 12px; }
+.iwb-editor-actions .iwb-editor-btn { width: auto; min-width: 76px; height: 32px; padding: 0 12px; font-size: 12px; white-space: nowrap; }
+.iwb-editor-actions .iwb-editor-action { width: auto; min-width: 76px; }
+
+.iwb-editor-actions .iwb-editor-action { min-width: 52px; width: auto; padding: 0 10px; font-size: 12px; }
+.iwb-editor-brush-presets { display: flex; align-items: center; gap: 7px; margin-left: 4px; }
+.iwb-editor-brush-preset { display: inline-flex; align-items: center; gap: 3px; padding: 2px 3px; border: 0; background: transparent; color: #a6adc8; cursor: pointer; font-size: 11px; }
+.iwb-editor-brush-preset i { display: block; width: 12px; height: 12px; border-radius: 50%; background: #e8a735; border: 1px solid #f6d38a; }
+.iwb-editor-brush-preset:nth-child(2) i { width: 16px; height: 16px; }
+.iwb-editor-brush-preset:nth-child(3) i { width: 20px; height: 20px; }
+.iwb-editor-brush-preset:nth-child(4) i { width: 24px; height: 24px; }
+.iwb-editor-brush-preset:hover, .iwb-editor-brush-preset.active { color: #fff; }
+
+/* 紧凑顶栏：操作按钮与描边快捷点仅保留必要视觉信息。 */
+.iwb-editor-actions .iwb-editor-action { width: 28px; min-width: 28px; height: 28px; padding: 0; }
+.iwb-editor-actions .iwb-editor-action svg { display: block !important; width: 14px; height: 14px; }
+.iwb-editor-brush-presets { gap: 5px; margin-left: 2px; }
+.iwb-editor-brush-preset { width: 24px; height: 24px; padding: 0; justify-content: center; }
+.iwb-editor-brush-preset i { width: 5px; height: 5px; }
+.iwb-editor-brush-preset:nth-child(2) i { width: 8px; height: 8px; }
+.iwb-editor-brush-preset:nth-child(3) i { width: 12px; height: 12px; }
+.iwb-editor-brush-preset:nth-child(4) i { width: 16px; height: 16px; }
+
+/* 图层栏内嵌调色板：颜色直接点击应用，不弹出系统取色器。 */
+.iwb-editor-color-panel { padding: 10px; }
+.iwb-editor-color-current { width: 42px; height: 42px; flex: 0 0 42px; cursor: default; }
+.iwb-editor-color-swatches { display: grid; grid-template-columns: repeat(7, 20px); gap: 5px; }
+.iwb-editor-color-panel-swatch { width: 20px; height: 20px; border-radius: 50%; }
+
+.iwb-editor-color-panel { padding: 10px; }
+.iwb-editor-color-current { width: 42px; height: 42px; flex: 0 0 42px; cursor: default; }
+.iwb-editor-color-swatches { display: grid; grid-template-columns: repeat(7, 20px); gap: 5px; }
+.iwb-editor-color-panel-swatch { width: 20px; height: 20px; border-radius: 50%; }
+
+.iwb-editor-color-panel { padding: 10px; }
+.iwb-editor-palette-current { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.iwb-editor-palette-current .iwb-editor-color-current { width: 26px; height: 26px; flex: 0 0 26px; border-radius: 4px; }
+.iwb-editor-color-panel .iwb-editor-color-hex { margin: 0; }
+.iwb-editor-color-panel .iwb-editor-color-swatches { display: grid; grid-template-columns: repeat(6, 20px); gap: 7px; }
+.iwb-editor-color-panel .iwb-editor-color-panel-swatch { width: 20px; height: 20px; border-radius: 50%; padding: 0; }
+.iwb-editor-color-panel .iwb-editor-color-panel-swatch.active { outline: 2px solid #fff; outline-offset: 2px; }
+
+.iwb-editor-color-panel { padding: 10px; }
+.iwb-editor-palette-current { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.iwb-editor-palette-current .iwb-editor-color-current { width: 26px; height: 26px; flex: 0 0 26px; border-radius: 4px; }
+.iwb-editor-color-panel .iwb-editor-color-hex { margin: 0; }
+.iwb-editor-color-panel .iwb-editor-color-swatches { display: grid; grid-template-columns: repeat(6, 20px); gap: 7px; }
+.iwb-editor-color-panel .iwb-editor-color-panel-swatch { width: 20px; height: 20px; border-radius: 50%; padding: 0; }
+.iwb-editor-color-panel .iwb-editor-color-panel-swatch.active { outline: 2px solid #fff; outline-offset: 2px; }
+
+.iwb-editor-inline-picker { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.iwb-editor-inline-picker .iwb-editor-color-panel-input { width: 42px; height: 28px; padding: 0; opacity: 1; cursor: pointer; border: 1px solid #585b70; border-radius: 4px; }
+.iwb-editor-color-panel .iwb-editor-color-swatches { display: grid; grid-template-columns: repeat(6, 20px); gap: 7px; }
+.iwb-editor-color-panel .iwb-editor-color-panel-swatch { width: 20px; height: 20px; border-radius: 50%; padding: 0; }
+
+.iwb-editor-inline-picker { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.iwb-editor-inline-picker .iwb-editor-color-panel-input { width: 42px; height: 28px; padding: 0; opacity: 1; cursor: pointer; border: 1px solid #585b70; border-radius: 4px; }
+.iwb-editor-color-panel .iwb-editor-color-swatches { display: grid; grid-template-columns: repeat(6, 20px); gap: 7px; }
+.iwb-editor-color-panel .iwb-editor-color-panel-swatch { width: 20px; height: 20px; border-radius: 50%; padding: 0; }
+
+.iwb-editor-inline-picker { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.iwb-editor-inline-picker .iwb-editor-color-panel-input { width: 42px; height: 28px; padding: 0; opacity: 1; cursor: pointer; border: 1px solid #585b70; border-radius: 4px; }
+.iwb-editor-color-panel .iwb-editor-color-swatches { display: grid; grid-template-columns: repeat(6, 20px); gap: 7px; }
+.iwb-editor-color-panel .iwb-editor-color-panel-swatch { width: 20px; height: 20px; border-radius: 50%; padding: 0; }
+
+.iwb-editor-color-panel { padding: 9px; }
+.iwb-editor-inline-picker { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.iwb-editor-inline-picker .iwb-editor-color-panel-input { display: block; width: 44px; height: 30px; padding: 0; opacity: 1; cursor: pointer; border: 1px solid #585b70; border-radius: 4px; }
+.iwb-editor-color-panel .iwb-editor-color-swatches { display: grid; grid-template-columns: repeat(6, 20px); gap: 7px; }
+.iwb-editor-color-panel .iwb-editor-color-panel-swatch { width: 20px; height: 20px; border-radius: 50%; padding: 0; }
+.iwb-editor-color-panel .iwb-editor-color-panel-swatch.active { outline: 2px solid #fff; outline-offset: 2px; }
+
+.iwb-editor-color-picker2 { display: flex; gap: 8px; height: 118px; }
+.iwb-color-sv { position: relative; flex: 1; background: linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,rgba(255,255,255,0)); background-color: #f44; border-radius: 4px; }
+.iwb-color-hue { width: 18px; border-radius: 4px; background: linear-gradient(to bottom,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00); }
+.iwb-editor-color-fields { display: flex; gap: 6px; margin: 8px 0; }
+.iwb-editor-color-hex-input { width: 72px; background:#313244; color:#cdd6f4; border:1px solid #585b70; padding:4px; }
+.iwb-editor-color-panel-input { width: 32px; height: 26px; opacity: 1; padding: 0; }
+
+.iwb-color-sv span, .iwb-color-hue span { position: absolute; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #222; transform: translate(-50%, -50%); pointer-events: none; }
+.iwb-color-sv span { left: 100%; top: 0; }
+.iwb-color-hue span { left: 50%; top: 0; }
