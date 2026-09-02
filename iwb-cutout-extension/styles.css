@@ -1023,3 +1023,5 @@
 .iwb-color-sv span, .iwb-color-hue span { position: absolute; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #222; transform: translate(-50%, -50%); pointer-events: none; }
 .iwb-color-sv span { left: 100%; top: 0; }
 .iwb-color-hue span { left: 50%; top: 0; }
+
+.iwb-compress-btn { color: #16a34a !important; font-size: 11px; font-weight: 700; }

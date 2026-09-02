@@ -7,7 +7,9 @@ const DEFAULTS = {
   replaceMode: false,
   autoWhiteBg: false,
   bgSize: 800,
-  bgRatio: 0.85
+  bgRatio: 0.85,
+  compressWidth: 1024,
+  compressQuality: 80
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const autoWhiteBgEl = document.getElementById('autoWhiteBg')
   const bgSizeEl = document.getElementById('bgSize')
   const bgRatioEl = document.getElementById('bgRatio')
+  const compressWidthEl = document.getElementById('compressWidth')
+  const compressQualityEl = document.getElementById('compressQuality')
   const modeNewNodeEl = document.getElementById('modeNewNode')
   const modeReplaceEl = document.getElementById('modeReplace')
   const statusDot = document.getElementById('statusDot')
@@ -33,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
     autoWhiteBgEl.checked = config.autoWhiteBg === true
     bgSizeEl.value = config.bgSize || DEFAULTS.bgSize
     bgRatioEl.value = Math.round((config.bgRatio || DEFAULTS.bgRatio) * 100)
+    compressWidthEl.value = config.compressWidth || DEFAULTS.compressWidth
+    compressQualityEl.value = config.compressQuality || DEFAULTS.compressQuality
     if (config.replaceMode) {
       modeReplaceEl.checked = true
     } else {
@@ -61,8 +67,13 @@ document.addEventListener('DOMContentLoaded', () => {
   saveBtn.addEventListener('click', () => {
     let bgSize = parseInt(bgSizeEl.value, 10)
     let bgRatio = parseFloat(bgRatioEl.value) / 100
+    let compressWidth = parseInt(compressWidthEl.value, 10)
+    let compressQuality = parseInt(compressQualityEl.value, 10)
     if (!bgSize || bgSize < 64) bgSize = DEFAULTS.bgSize
     if (!bgRatio || bgRatio < 0.1) bgRatio = DEFAULTS.bgRatio
+    if (!compressWidth || compressWidth < 64) compressWidth = DEFAULTS.compressWidth
+    if (!compressQuality || compressQuality < 10) compressQuality = DEFAULTS.compressQuality
+    compressQuality = Math.min(100, compressQuality)
 
     const config = {
       apiUrl: apiUrlEl.value.trim() || DEFAULTS.apiUrl,
@@ -71,7 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
       replaceMode: modeReplaceEl.checked,
       autoWhiteBg: autoWhiteBgEl.checked,
       bgSize,
-      bgRatio
+      bgRatio,
+      compressWidth,
+      compressQuality
     }
     chrome.runtime.sendMessage({ type: 'SAVE_CONFIG', config }, (resp) => {
       if (resp && resp.success) {

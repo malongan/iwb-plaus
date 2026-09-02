@@ -564,6 +564,27 @@
     }, 3500)
   }
 
+  async function performCompress(nodeEl) {
+    const nodeId = nodeEl.getAttribute('data-node-id')
+    if (!nodeId || processingNodes.has(nodeId)) return
+    processingNodes.add(nodeId); setButtonProcessing(nodeEl, true)
+    try {
+      const currentConfig = await new Promise(resolve => chrome.runtime.sendMessage({ type: 'GET_CONFIG' }, r => resolve((r && r.success && r.config) || config)))
+      const data = getImageFromNode(nodeEl)
+      const src = data.base64 || (data.blobUrl ? await blobUrlToBase64(data.blobUrl) : data.url)
+      if (!src) throw new Error('无法读取图片数据')
+      const img = await loadImageSafe(src)
+      const width = Math.min(currentConfig.compressWidth || 1024, 16384)
+      const height = Math.max(1, Math.round(img.height * width / img.width))
+      const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      const out = canvas.toDataURL('image/jpeg', Math.min(1, Math.max(.1, (currentConfig.compressQuality || 80) / 100)))
+      await injectReplaceImage(nodeEl, out, (getNodeImageName(nodeEl) || 'image') + '-compressed.jpg')
+      showToast('图片压缩完成', 'success')
+    } catch (e) { console.error('[IWB压缩]', e); showToast('压缩失败：' + e.message, 'error') }
+    finally { processingNodes.delete(nodeId); setButtonProcessing(nodeEl, false) }
+  }
+
   // ============ 按钮注入 ============
 
   function injectCutoutButtons() {
@@ -580,6 +601,13 @@
       if (!headBtns) return
 
       const copyBtn = headBtns.querySelector('[title*="复制节点"]')
+
+      const compressBtn = document.createElement('button')
+      compressBtn.className = 'iwb-node-del iwb-compress-btn'; compressBtn.textContent = '压'
+      bindTip(compressBtn, `图片压缩（宽度 ${currentConfig.compressWidth || 1024}px，质量 ${currentConfig.compressQuality || 80}%）`)
+      compressBtn.addEventListener('pointerdown', e => e.stopPropagation())
+      compressBtn.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); performCompress(nodeEl) })
+      if (copyBtn) headBtns.insertBefore(compressBtn, copyBtn); else headBtns.appendChild(compressBtn)
 
       // 按钮1: 鲜艺抠图
       const btn = document.createElement('button')
