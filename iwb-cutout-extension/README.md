@@ -141,7 +141,7 @@
 ### 文件结构
 ```
 iwb-cutout-extension/
-├── manifest.json    # Chrome Extension Manifest V3 配置 (v2.2.2)
+├── manifest.json    # Chrome Extension Manifest V3 配置 (v2.5.0)
 ├── background.js     # 后台服务：调用鲜艺抠图 HTTP API
 ├── content.js        # 内容脚本：注入按钮、读取图片、注入结果
 ├── editor.js         # 图层化图片编辑器（图层 + 裁剪 + 标注）
@@ -198,6 +198,7 @@ iwb-cutout-extension/
 
 ## 更新日志
 
+- **v2.5.0**：适配 image-workbench-web 重构——工具按钮注入到选中节点的浮动气泡栏(.iwb-node-floatbar)；标题栏隐藏时不再注入不可见按钮。
 - **v2.2.2**：编辑器界面与圆形工具、透明区域显示及画笔/橡皮擦交互优化。
 
 - **v2.2.1**：修复抠图图片读取链路；兼容图片容器/图片元素选择器；页面侧跨域读取失败时回退到后台 URL 下载；修复自定义 API 地址测试未生效和 API 地址尾斜杠问题

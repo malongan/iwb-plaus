@@ -1025,3 +1025,9 @@
 .iwb-color-hue span { left: 50%; top: 0; }
 
 .iwb-compress-btn { color: #16a34a !important; font-size: 11px; font-weight: 700; }
+
+/* 新版浮动气泡栏内的工具按钮 */
+.iwb-node-floatbar .iwb-compress-btn { font-size: 11px; font-weight: 700; }
+.iwb-node-floatbar .iwb-cutout-btn.processing,
+.iwb-node-floatbar .iwb-whitebg-btn.processing,
+.iwb-node-floatbar .iwb-compress-btn.processing { animation: iwb-cutout-pulse 1s infinite; pointer-events: none; }

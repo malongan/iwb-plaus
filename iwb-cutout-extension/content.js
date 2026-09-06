@@ -535,9 +535,18 @@
   // ============ UI 辅助 ============
 
   function setButtonProcessing(nodeEl, processing) {
-    nodeEl.querySelectorAll('.iwb-cutout-btn, .iwb-whitebg-btn').forEach(btn => {
+    const id = nodeEl.getAttribute('data-node-id')
+    const mark = (btn) => {
       btn.classList.toggle('processing', processing)
       btn.style.pointerEvents = processing ? 'none' : ''
+    }
+    nodeEl.querySelectorAll('.iwb-cutout-btn, .iwb-whitebg-btn, .iwb-compress-btn, .iwb-editor-btn-icon').forEach(mark)
+    // 新版：按钮位于浮动气泡栏，随选中节点渲染在节点外部
+    document.querySelectorAll('.iwb-node-floatbar').forEach((bar) => {
+      const n = findFloatbarNode(bar)
+      if (n && n.getAttribute('data-node-id') === id) {
+        bar.querySelectorAll('.iwb-cutout-btn, .iwb-whitebg-btn, .iwb-compress-btn, .iwb-editor-btn-icon').forEach(mark)
+      }
     })
   }
 
@@ -587,78 +596,78 @@
 
   // ============ 按钮注入 ============
 
+  /** 判断节点是否带图片（ref 有图 / out 输出图） */
+  function nodeHasImage(nodeEl) {
+    return !!(nodeEl.querySelector('.iwb-ref-single, .iwb-ref-show img, .iwb-ref-body img') || nodeEl.querySelector('.iwb-out-cell-img'))
+  }
+
+  /** 在 host 内创建全部工具按钮（抠图/白底/压缩/编辑）。重复调用安全（已有则跳过）。 */
+  function addToolButtons(host, nodeEl, beforeEl) {
+    if (!host || host.querySelector('.iwb-cutout-btn')) return
+    const make = (cls, content, color, tip, run) => {
+      const b = document.createElement('button')
+      b.className = 'iwb-node-del ' + cls
+      if (typeof content === 'string' && content.indexOf('<svg') === 0) b.innerHTML = content
+      else b.textContent = content
+      b.style.color = color
+      bindTip(b, tip)
+      b.addEventListener('pointerdown', (e) => e.stopPropagation())
+      b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); run(nodeEl) })
+      return b
+    }
+    const compress = make('iwb-compress-btn', '压', '#16a34a',
+      '图片压缩（宽度 ' + (config.compressWidth || 1024) + 'px，质量 ' + (config.compressQuality || 80) + '%）', performCompress)
+    const cutout = make('iwb-cutout-btn', SCISSORS_SVG, '#e8a735', '鲜艺AI抠图（去背景）', performCutout)
+    const white = make('iwb-whitebg-btn', WHITE_BG_SVG, '#3b82f6',
+      '白底 ' + (config.bgSize || 800) + '×' + (config.bgSize || 800) + '（透明图转白底，内容占 ' + Math.round((config.bgRatio || 0.85) * 100) + '%）', performWhiteBg)
+    const edit = make('iwb-editor-btn-icon', EDITOR_SVG, '#a855f7', '图片编辑（图层、画笔、裁剪、标注）', performEditor)
+    const anchor = beforeEl || host.lastElementChild
+    ;[compress, cutout, white, edit].forEach((b) => { host.insertBefore(b, anchor ? anchor.nextSibling : null) })
+  }
+
+  /** 旧版：注入到节点标题栏 .iwb-node-headbtns（仅当标题栏可见时使用） */
   function injectCutoutButtons() {
     const nodes = document.querySelectorAll('.iwb-node[data-node-id]')
     nodes.forEach(nodeEl => {
-      if (nodeEl.querySelector('.iwb-cutout-btn')) return
-
-      // 只为有图片的 ref 节点添加按钮
-      const img = nodeEl.querySelector('.iwb-ref-single, .iwb-ref-show img')
-      const outImg = nodeEl.querySelector('.iwb-out-cell-img')
-      if (!img && !outImg) return
-
+      const head = nodeEl.querySelector('.iwb-node-head')
+      if (!head) return
+      const headStyle = window.getComputedStyle ? window.getComputedStyle(head) : null
+      if (headStyle && headStyle.display === 'none') return
+      if (!nodeHasImage(nodeEl)) return
       const headBtns = nodeEl.querySelector('.iwb-node-headbtns')
       if (!headBtns) return
-
       const copyBtn = headBtns.querySelector('[title*="复制节点"]')
+      addToolButtons(headBtns, nodeEl, copyBtn || null)
+    })
+  }
 
-      const compressBtn = document.createElement('button')
-      compressBtn.className = 'iwb-node-del iwb-compress-btn'; compressBtn.textContent = '压'
-      bindTip(compressBtn, `图片压缩（宽度 ${config.compressWidth || 1024}px，质量 ${config.compressQuality || 80}%）`)
-      compressBtn.addEventListener('pointerdown', e => e.stopPropagation())
-      compressBtn.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); performCompress(nodeEl) })
-      if (copyBtn) headBtns.insertBefore(compressBtn, copyBtn); else headBtns.appendChild(compressBtn)
+  /** 新版：把工具按钮注入到选中节点的浮动气泡栏 .iwb-node-floatbar */
+  function findFloatbarNode(bar) {
+    const br = bar.getBoundingClientRect()
+    if (!br.width || !br.height) return null
+    const bx = br.left + br.width / 2
+    let best = null, bestScore = Infinity
+    document.querySelectorAll('.iwb-node[data-node-id]').forEach((n) => {
+      const r = n.getBoundingClientRect()
+      if (!r.width || !r.height) return
+      const cx = r.left + r.width / 2
+      const dx = Math.abs(cx - bx)
+      const dy = br.bottom - r.top
+      if (dx < 40 && dy > -30 && dy < 90) {
+        const score = dx * 2 + Math.abs(dy)
+        if (score < bestScore) { bestScore = score; best = n }
+      }
+    })
+    return best
+  }
 
-      // 按钮1: 鲜艺抠图
-      const btn = document.createElement('button')
-      btn.className = 'iwb-node-del iwb-cutout-btn'
-      btn.innerHTML = SCISSORS_SVG
-      btn.style.color = '#e8a735'
-      bindTip(btn, '鲜艺AI抠图（去背景）')
-
-      btn.addEventListener('pointerdown', (e) => e.stopPropagation())
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        performCutout(nodeEl)
-      })
-
-      if (copyBtn) headBtns.insertBefore(btn, copyBtn)
-      else headBtns.appendChild(btn)
-
-      // 按钮2: 白底 800x800（透明图转白底大图）
-      const whiteBtn = document.createElement('button')
-      whiteBtn.className = 'iwb-node-del iwb-whitebg-btn'
-      whiteBtn.innerHTML = WHITE_BG_SVG
-      whiteBtn.style.color = '#3b82f6'
-      bindTip(whiteBtn, `白底 ${config.bgSize}×${config.bgSize}（透明图转白底，内容占 ${Math.round(config.bgRatio * 100)}%）`)
-
-      whiteBtn.addEventListener('pointerdown', (e) => e.stopPropagation())
-      whiteBtn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        performWhiteBg(nodeEl)
-      })
-
-      if (copyBtn) headBtns.insertBefore(whiteBtn, copyBtn)
-      else headBtns.appendChild(whiteBtn)
-
-      // 按钮3: 图片编辑器（裁剪+标注）
-      const editBtn = document.createElement('button')
-      editBtn.className = 'iwb-node-del iwb-editor-btn-icon'
-      editBtn.innerHTML = EDITOR_SVG
-      editBtn.style.color = '#a855f7'
-      bindTip(editBtn, '图片编辑（图层、画笔、裁剪、标注）')
-
-      editBtn.addEventListener('pointerdown', (e) => e.stopPropagation())
-      editBtn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        performEditor(nodeEl)
-      })
-
-      if (copyBtn) headBtns.insertBefore(editBtn, copyBtn)
-      else headBtns.appendChild(editBtn)
+  function injectFloatbarButtons() {
+    document.querySelectorAll('.iwb-node-floatbar').forEach((bar) => {
+      if (bar.querySelector('.iwb-cutout-btn')) return
+      const nodeEl = findFloatbarNode(bar)
+      if (!nodeEl || !nodeHasImage(nodeEl)) return
+      const danger = bar.querySelector('.iwb-node-floatbar-danger, [title="删除节点"]')
+      addToolButtons(bar, nodeEl, danger || null)
     })
   }
 
@@ -671,6 +680,7 @@
     injectFrame = requestAnimationFrame(() => {
       injectFrame = 0
       injectCutoutButtons()
+      injectFloatbarButtons()
     })
   }
 
