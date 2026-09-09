@@ -68,6 +68,10 @@
     selectedShapeId: null,
     shapeDrag: null,      // { mode:'move'|'handle', handle, start:{x,y}, shape:{...}, pending }
     penPath: null,        // 钢笔绘制中的点序列与预览点
+    penEditId: null,     // 钢笔二次编辑中的形状 id
+    penDragPt: -1,       // 正在拖动的节点下标（-1=无）
+    penDragBase: null,
+    penDragPending: null,
     zCounter: 0,          // 全局 z 序计数器（文字与形状统一排序）
     // 图片放置中状态（导入图片时先调整大小/位置再确认）
     placingImage: null,    // { img, x, y, w, h } 图片坐标
@@ -1225,6 +1229,10 @@ function setActiveLayer(id) {
     S.selectedShapeId = null
     S.shapeDrag = null
     S.penPath = null
+    S.penEditId = null
+    S.penDragPt = -1
+    S.penDragBase = null
+    S.penDragPending = null
     S.zCounter = Math.max(S.layers.length - 1, 0)
     S.placingImage = null
     S.placingHandle = null
@@ -1708,6 +1716,7 @@ function setActiveLayer(id) {
   function setTool(tool) {
     if (S.placingImage) cancelImagePlacement()
     commitTextInput()
+    if (tool !== 'select' && tool !== 'pen') { S.penEditId = null; S.penDragPt = -1; S.penDragPending = null }
     if (tool === 'picker' && S.tool !== 'picker') S.prevTool = S.tool
     if (tool !== 'pen') S.penPath = null
     S.tool = tool
@@ -2401,11 +2410,85 @@ function setActiveLayer(id) {
       const sh = getSelectedShape()
       if (sh) drawShapeSelection(sh)
     }
+    const penShape = getPenEditingShape()
+    if (penShape) drawPenEditOverlay(penShape)
     if (S.cropRect) drawCropPreview()
     updateLayerUI()
   }
 
 
+
+  // ============ 钢笔二次编辑（移动/添加/删除节点） ============
+  function getPenEditingShape() {
+    if (!S.penEditId) return null
+    return S.shapeLayers.find(sh => sh.id === S.penEditId && sh.type === 'pen') || null
+  }
+  function beginPenEdit(shape) {
+    S.penEditId = shape.id
+    S.selectedShapeId = shape.id
+    S.selectedTextId = null
+    S.selectedLayerId = null
+    S.shapeDrag = null
+    S.penDragPt = -1
+    S.penDragBase = null
+    S.penDragPending = null
+    renderObjects()
+    renderLayerPanel()
+  }
+  function exitPenEdit() {
+    S.penEditId = null
+    S.penDragPt = -1
+    S.penDragBase = null
+    S.penDragPending = null
+    renderObjects()
+    renderLayerPanel()
+  }
+  function hitPenPoint(pos, shape, r) {
+    const pts = shape.pts || []
+    for (let i = 0; i < pts.length; i++) {
+      if (Math.hypot(pos.x - pts[i].x, pos.y - pts[i].y) <= r) return i
+    }
+    return -1
+  }
+  function hitPenEdgeInsert(pos, shape) {
+    const pts = shape.pts || []
+    const r = Math.max(12 / S.zoom, 6)
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (distToSeg(pos.x, pos.y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= r) return i
+    }
+    if (shape.closed && pts.length >= 3) {
+      if (distToSeg(pos.x, pos.y, pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y) <= r) return pts.length - 1
+    }
+    return -1
+  }
+  function drawPenEditOverlay(shape) {
+    const ctx = S.overlayCtx
+    const pts = shape.pts || []
+    const R = Math.max(7 / S.zoom, 5)
+    ctx.save()
+    ctx.lineWidth = 1.5 / S.zoom
+    // 线段中点“+”插入点（仅开放线段；闭合额外补最后一段）
+    const segments = []
+    for (let i = 0; i < pts.length - 1; i++) segments.push([pts[i], pts[i + 1]])
+    if (shape.closed && pts.length >= 3) segments.push([pts[pts.length - 1], pts[0]])
+    ctx.strokeStyle = '#e8a735'
+    for (const [a, b] of segments) {
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
+      ctx.beginPath()
+      ctx.arc(mx, my, Math.max(3 / S.zoom, 2), 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    // 节点
+    for (let i = 0; i < pts.length; i++) {
+      ctx.beginPath()
+      ctx.rect(pts[i].x - R / 2, pts[i].y - R / 2, R, R)
+      ctx.fillStyle = '#ffffff'
+      ctx.strokeStyle = i === S.penDragPt ? '#ff8c00' : '#e8a735'
+      ctx.fill()
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
 
   // ============ 文字输入框 ============
   function showTextInput(x, y, layer) {
@@ -2587,6 +2670,32 @@ function setActiveLayer(id) {
     S.startX = pos.x
     S.startY = pos.y
 
+    if ((S.tool === 'select' || S.tool === 'pen') && getPenEditingShape()) {
+      const penShape = getPenEditingShape()
+      const pi = hitPenPoint(pos, penShape, Math.max(16 / S.zoom, 9))
+      if (pi >= 0) {
+        e.preventDefault()
+        S.penDragPt = pi
+        S.penDragBase = JSON.parse(JSON.stringify(penShape.pts))
+        S.penDragPending = snapshotState()
+        return
+      }
+      const ei = hitPenEdgeInsert(pos, penShape)
+      if (ei >= 0) {
+        e.preventDefault()
+        saveSnapshot()
+        penShape.pts.splice(ei + 1, 0, { x: pos.x, y: pos.y })
+        renderObjects()
+        renderLayerPanel()
+        return
+      }
+      // 点击空白：退出编辑（继续走工具原有新建/选择逻辑）
+      S.penEditId = null
+      S.penDragPt = -1
+      S.penDragPending = null
+      renderObjects()
+    }
+
     if (S.tool === 'select') {
       if (commitTextInput()) return
       const bitmapHandle = hitBitmapHandle(pos)
@@ -2759,6 +2868,15 @@ function setActiveLayer(id) {
       }
       return
     }
+    if (S.penDragPt >= 0) {
+      const penShape = getPenEditingShape()
+      if (penShape && penShape.pts[S.penDragPt]) {
+        penShape.pts[S.penDragPt].x = clamp(pos0.x, 0, S.imgW)
+        penShape.pts[S.penDragPt].y = clamp(pos0.y, 0, S.imgH)
+        renderObjects()
+      }
+      return
+    }
     if (S.shapeDrag) {
       const sh = getSelectedShape()
       if (sh) {
@@ -2837,6 +2955,22 @@ function setActiveLayer(id) {
   }
 
   function onMouseUp(e) {
+    if (S.penDragPt >= 0) {
+      const penShape = getPenEditingShape()
+      const pending = S.penDragPending
+      S.penDragPt = -1
+      S.penDragPending = null
+      S.penDragBase = null
+      if (pending && penShape) {
+        const cur = snapshotState()
+        if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes)) {
+          S.history.push(pending)
+          if (S.history.length > 50) S.history.shift()
+          S.redoStack = []
+        }
+      }
+      return
+    }
     // 图片放置拖拽结束
     if (S.placingImage && S.placingHandle) {
       S.placingHandle = null
@@ -3351,12 +3485,41 @@ function setActiveLayer(id) {
       if (S.tool === 'picker') hidePickerTip()
     })
 
-    // 双击文字 → 重新编辑内容
+    // 双击文字 → 重新编辑内容；双击钢笔形状 → 进入节点编辑
     S.canvasStack.addEventListener('dblclick', (e) => {
       if (S.placingImage) return
-      if (S.tool === 'pen') { commitPenPath(); return }
-       if (S.tool !== 'text' && S.tool !== 'select') return
       const pos = getPos(e)
+      if (S.tool === 'pen' && S.penPath) { commitPenPath(); return }
+      if (S.tool === 'select' || S.tool === 'pen') {
+        const penShape = getPenEditingShape()
+        if (penShape) {
+          // 双击节点 → 删除节点
+          const pi = hitPenPoint(pos, penShape, Math.max(14 / S.zoom, 8))
+          if (pi >= 0) {
+            e.preventDefault()
+            saveSnapshot()
+            const pts = penShape.pts
+            const minPts = penShape.closed ? 3 : 2
+            if (pts.length <= minPts) {
+              removeVecCanvas(penShape)
+              S.shapeLayers = S.shapeLayers.filter(x => x.id !== penShape.id)
+              S.penEditId = null
+              S.selectedShapeId = null
+            } else {
+              pts.splice(pi, 1)
+              if (penShape.closed && pts.length < 3) penShape.closed = false
+            }
+            renderObjects()
+            renderLayerPanel()
+            return
+          }
+          return // 正在编辑：避免误触发新建文字
+        }
+        // 未在编辑：双击命中钢笔形状进入编辑
+        const hitPen = hitShapeLayer(pos, true)
+        if (hitPen && hitPen.type === 'pen') { e.preventDefault(); beginPenEdit(hitPen); return }
+      }
+       if (S.tool !== 'text' && S.tool !== 'select') return
       const hit = hitTextLayer(pos)
       if (hit) {
         S.selectedTextId = hit.id
@@ -3451,6 +3614,7 @@ function setActiveLayer(id) {
     if (e.key === 'Escape') {
       if (isTyping(e)) { hideTextInput(); return }
       if (S.penPath) { e.preventDefault(); S.penPath = null; renderObjects(); return }
+      if (getPenEditingShape()) { e.preventDefault(); exitPenEdit(); return }
       if (S.selectedLayerId || S.selectedTextId || S.selectedShapeId || S.bitmapDrag || S.textDrag || S.shapeDrag) {
         e.preventDefault()
         clearSelection()
