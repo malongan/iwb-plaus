@@ -385,7 +385,7 @@
     }
 
     // 方案 B: 使用节点 body 的 file input（空节点的上传标签）
-    const bodyFileInput = nodeEl.querySelector('.iwb-ref-upload input[type="file"]')
+    const bodyFileInput = nodeEl.querySelector('.iwb-ref-emptybox input[type="file"], .iwb-ref-upload input[type="file"]')
     if (bodyFileInput) {
       const file = base64ToFile(cutoutBase64, filename)
       const dt = new DataTransfer()
@@ -603,6 +603,119 @@
     finally { processingNodes.delete(nodeId); setButtonProcessing(nodeEl, false) }
   }
 
+  // ============ 空白画布（供标注绘制插图） ============
+  function isEmptyRefNode(nodeEl) {
+    return !!(nodeEl.querySelector('.iwb-ref-emptybox') || (nodeEl.querySelector('.iwb-ref-body') && !nodeEl.querySelector('.iwb-ref-single, .iwb-ref-show img')))
+  }
+  // 与应用侧常用尺寸一致：比例 × 清晰度（1K/2K/4K）
+  const BLANK_RES_KEYS = ['1K', '2K', '4K']
+  const BLANK_RATIOS = [
+    { value: '1:1', label: '1:1 方形', sizes: { '1K': '1024x1024', '2K': '2048x2048', '4K': '2864x2864' } },
+    { value: '2:3', label: '2:3 竖版', sizes: { '1K': '832x1248', '2K': '1536x2304', '4K': '2048x3072' } },
+    { value: '3:2', label: '3:2 横版', sizes: { '1K': '1248x832', '2K': '2304x1536', '4K': '3072x2048' } },
+    { value: '3:4', label: '3:4 竖版', sizes: { '1K': '880x1168', '2K': '2016x2688', '4K': '2448x3264' } },
+    { value: '4:3', label: '4:3 横版', sizes: { '1K': '1184x880', '2K': '2688x2016', '4K': '2688x2016' } },
+    { value: '4:5', label: '4:5 竖版', sizes: { '1K': '912x1136', '2K': '1632x2032', '4K': '2048x2560' } },
+    { value: '5:4', label: '5:4 横版', sizes: { '1K': '1136x896', '2K': '2032x1632', '4K': '2560x2048' } },
+    { value: '9:16', label: '9:16 竖版', sizes: { '1K': '768x1360', '2K': '1440x2560', '4K': '2160x3840' } },
+    { value: '16:9', label: '16:9 横版', sizes: { '1K': '1360x752', '2K': '2048x1152', '4K': '3840x2160' } },
+    { value: '21:9', label: '21:9 超宽', sizes: { '1K': '1552x656', '2K': '2688x1152', '4K': '3840x1648' } },
+    { value: '9:21', label: '9:21 超宽竖版', sizes: { '1K': '656x1520', '2K': '1152x2688', '4K': '1648x3840' } },
+  ]
+  const BLANK_CANVAS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>'
+
+  let blankMenuEl = null
+  let blankMenuOutsideHandler = null
+  function closeBlankMenu() {
+    if (blankMenuEl) { blankMenuEl.remove(); blankMenuEl = null }
+    if (blankMenuOutsideHandler) {
+      document.removeEventListener('pointerdown', blankMenuOutsideHandler, true)
+      blankMenuOutsideHandler = null
+    }
+  }
+  function parseSizeText(t) {
+    const m = String(t).toLowerCase().match(/(\d+)\s*x\s*(\d+)/)
+    return m ? { w: parseInt(m[1], 10), h: parseInt(m[2], 10) } : null
+  }
+  function waitForNodeImage(nodeEl, timeout) {
+    return new Promise((resolve) => {
+      const t0 = Date.now()
+      const iv = setInterval(() => {
+        if (nodeHasImage(nodeEl)) { clearInterval(iv); resolve(true); return }
+        if (Date.now() - t0 > timeout) { clearInterval(iv); resolve(false) }
+      }, 120)
+    })
+  }
+  async function performBlankCanvas(nodeEl, w, h, bg) {
+    const nodeId = nodeEl.getAttribute('data-node-id')
+    if (!nodeId || processingNodes.has(nodeId)) return
+    processingNodes.add(nodeId); setButtonProcessing(nodeEl, true)
+    try {
+      const c = document.createElement('canvas')
+      c.width = w; c.height = h
+      const ctx = c.getContext('2d')
+      if (bg === 'white') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h) }
+      const url = c.toDataURL('image/png')
+      const name = (getNodeImageName(nodeEl) || '插图') + '_blank_' + w + 'x' + h + '.png'
+      await injectReplaceImage(nodeEl, url, name)
+      showToast('空白画布已创建，正在打开绘制…', 'success')
+      const ok = await waitForNodeImage(nodeEl, 3000)
+      if (ok && window.__iwbEditor) { setTimeout(() => performEditor(nodeEl), 150) }
+    } catch (err) {
+      console.error('[IWB空白画布] 失败:', err)
+      showToast('创建空白画布失败: ' + err.message, 'error')
+    } finally {
+      processingNodes.delete(nodeId)
+      setButtonProcessing(nodeEl, false)
+    }
+  }
+  function showBlankMenu(btn, nodeEl) {
+    closeBlankMenu()
+    const menu = document.createElement('div')
+    menu.className = 'iwb-blank-menu'
+    let resKey = '1K'
+    let bg = 'white'
+    const r = btn.getBoundingClientRect()
+    menu.style.left = Math.max(8, Math.min(window.innerWidth - 250, r.right - 230)) + 'px'
+    menu.style.top = Math.max(8, r.bottom + 6) + 'px'
+    const paint = () => {
+      let html = '<div class="iwb-blank-title">创建空白画布</div>'
+      html += '<div class="iwb-blank-bg"><span>底色</span>' +
+        '<button type="button" data-bg="white"' + (bg === 'white' ? ' class="on"' : '') + '>白色</button>' +
+        '<button type="button" data-bg="transparent"' + (bg === 'transparent' ? ' class="on"' : '') + '>透明</button></div>'
+      html += '<div class="iwb-blank-res">' + BLANK_RES_KEYS.map(k => '<button type="button" data-res="' + k + '"' + (k === resKey ? ' class="on"' : '') + '>' + k + '</button>').join('') + '</div>'
+      html += '<div class="iwb-blank-grid">' + BLANK_RATIOS.map(rp => {
+        const dim = parseSizeText((rp.sizes && rp.sizes[resKey]) || '1024x1024')
+        return '<button type="button" data-w="' + dim.w + '" data-h="' + dim.h + '"><b>' + rp.label + '</b><i>' + dim.w + '×' + dim.h + '</i></button>'
+      }).join('') + '</div>'
+      menu.innerHTML = html
+      menu.querySelectorAll('[data-bg]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); bg = b.dataset.bg; paint() }))
+      menu.querySelectorAll('[data-res]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); resKey = b.dataset.res; paint() }))
+      menu.querySelectorAll('[data-w]').forEach(b => b.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const w = parseInt(b.dataset.w, 10), h = parseInt(b.dataset.h, 10)
+        closeBlankMenu()
+        performBlankCanvas(nodeEl, w, h, bg)
+      }))
+    }
+    paint()
+    document.body.appendChild(menu)
+    blankMenuOutsideHandler = (e) => { if (!blankMenuEl || !blankMenuEl.contains(e.target)) closeBlankMenu() }
+    document.addEventListener('pointerdown', blankMenuOutsideHandler, true)
+  }
+  function addBlankToolButton(host, nodeEl, beforeEl) {
+    if (!host || host.querySelector('.iwb-blank-canvas-btn')) return
+    const b = document.createElement('button')
+    b.className = 'iwb-node-del iwb-blank-canvas-btn'
+    b.innerHTML = BLANK_CANVAS_SVG
+    b.style.color = '#0ea5e9'
+    bindTip(b, '空白画布：创建指定尺寸空白图并打开绘制（插图/标注）')
+    b.addEventListener('pointerdown', (e) => e.stopPropagation())
+    b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); showBlankMenu(b, nodeEl) })
+    const anchor = beforeEl || host.lastElementChild
+    host.insertBefore(b, anchor ? anchor.nextSibling : null)
+  }
+
   // ============ 按钮注入 ============
 
   /** 判断节点是否带图片（ref 有图 / out 输出图） */
@@ -650,11 +763,14 @@
       if (!head) return
       const headStyle = window.getComputedStyle ? window.getComputedStyle(head) : null
       if (headStyle && headStyle.display === 'none') return
-      if (!nodeHasImage(nodeEl)) return
       const headBtns = nodeEl.querySelector('.iwb-node-headbtns')
       if (!headBtns) return
       const copyBtn = headBtns.querySelector('[title*="复制节点"]')
-      addToolButtons(headBtns, nodeEl, copyBtn || null)
+      if (nodeHasImage(nodeEl)) {
+        addToolButtons(headBtns, nodeEl, copyBtn || null)
+      } else if (isEmptyRefNode(nodeEl)) {
+        addBlankToolButton(headBtns, nodeEl, copyBtn || null)
+      }
     })
   }
 
@@ -684,7 +800,11 @@
       const nodeEl = findFloatbarNode(bar)
       if (!nodeEl || !nodeHasImage(nodeEl)) return
       const danger = bar.querySelector('.iwb-node-floatbar-danger, [title="删除节点"]')
-      addToolButtons(bar, nodeEl, danger || null)
+      if (nodeHasImage(nodeEl)) {
+        addToolButtons(bar, nodeEl, danger || null)
+      } else if (isEmptyRefNode(nodeEl)) {
+        addBlankToolButton(bar, nodeEl, danger || null)
+      }
     })
   }
 
