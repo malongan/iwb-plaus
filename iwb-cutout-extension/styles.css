@@ -1221,7 +1221,7 @@
 
 /* 裁剪工具条：三行展示（比例 / 尺寸 / 确认取消），避免被挤压 */
 .iwb-editor-crop-bar {
-  display: flex !important;
+  display: flex;
   flex-direction: column;
   gap: 8px;
   align-items: center;
