@@ -138,6 +138,9 @@
             <button class="iwb-editor-action iwb-editor-action-restore" data-action="restore" title="复原原始图（撤销所有编辑）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
            </div>
 
+
+        </div>
+        <div class="iwb-editor-main">
           <div class="iwb-editor-params">
             <div class="iwb-editor-zoom">
               <button class="iwb-editor-zoom-btn" data-action="zoomOut" title="缩小 (滚轮向下)">−</button>
@@ -187,8 +190,6 @@
               </label>
             </div>
           </div>
-        </div>
-        <div class="iwb-editor-main">
           <div class="iwb-editor-canvas-wrap">
             <div class="iwb-editor-canvas-stack">
               <div class="iwb-editor-transparency-grid"></div>

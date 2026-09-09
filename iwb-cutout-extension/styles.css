@@ -1057,3 +1057,61 @@
 .iwb-blank-inline-btn { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; display: inline-flex; align-items: center; gap: 5px; background: #fff; border: 1px solid #d0d7de; border-radius: 14px; padding: 4px 11px; color: #0ea5e9; font-size: 11px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 .iwb-blank-inline-btn:hover { background: #f0f9ff; border-color: #0ea5e9; }
 .iwb-blank-inline-btn svg { width: 13px; height: 13px; }
+
+/* ============ UI 布局重构（参照 excalidraw） ============ */
+/* 顶部：功能按钮在左，工具栏横排整行、按快捷键排序并带数字角标 */
+.iwb-editor-header { flex-wrap: wrap; }
+.iwb-editor-header > .iwb-editor-title { order: 1; }
+.iwb-editor-header > .iwb-editor-actions { order: 2; }
+.iwb-editor-header > .iwb-editor-tools {
+  position: static;
+  order: 3;
+  flex: 1 1 100%;
+  width: auto;
+  left: auto;
+  top: auto;
+  margin-top: 8px;
+  flex-direction: row;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+.iwb-editor-tool { position: relative; }
+.iwb-tool-key {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  font-size: 8px;
+  line-height: 1;
+  background: #45475a;
+  color: #cdd6f4;
+  padding: 1px 3px;
+  border-radius: 3px;
+  pointer-events: none;
+  font-style: normal;
+  font-weight: 600;
+}
+.iwb-editor-tool.active .iwb-tool-key { background: #1e1e2e; color: #e8a735; }
+.iwb-editor-header > .iwb-editor-tools .iwb-editor-divider { width: 1px; height: 22px; margin: 0 6px; }
+
+/* 左侧：工具参数设定栏（缩放/实心/图层/描边/硬度/透明度） */
+.iwb-editor-params {
+  width: 216px;
+  min-width: 216px;
+  flex: 0 0 216px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-left: 0;
+  padding: 14px 12px;
+  background: #181825;
+  border-right: 1px solid #313244;
+  overflow-y: auto;
+}
+.iwb-editor-params .iwb-editor-zoom { margin-left: 0; order: 0; }
+.iwb-editor-params .iwb-editor-zoom .iwb-editor-zoom-val { min-width: 52px; text-align: center; }
+.iwb-editor-params .iwb-editor-layer-group { flex-wrap: wrap; justify-content: flex-start; }
+.iwb-editor-params .iwb-editor-brush-label { width: 100%; }
+.iwb-editor-params .iwb-editor-brush-presets { justify-content: flex-start; }
+.iwb-editor-params .iwb-editor-fill-btn { align-self: stretch; }
+.iwb-editor-main { display: flex; flex-direction: row; }
