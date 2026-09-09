@@ -1209,3 +1209,6 @@
 }
 .iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-btn:hover { background: #45475a; }
 .iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-val { min-width: 52px; text-align: center; color: #cdd6f4; font: 600 12px sans-serif; }
+
+/* 调色板与下方参数调节之间的横线分割 */
+.iwb-editor-params { border-top: 1px solid #313244; padding-top: 12px; }
