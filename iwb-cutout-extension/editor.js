@@ -308,10 +308,14 @@
    * 所有 canvas 必须共享 canvas-stack 的坐标系；隐藏图层只用 CSS 隐藏，
    * 不从 DOM 移除，避免 canvas-stack 在 flex/inline 布局下重新计算位置。 */
   function reorderLayerCanvas() {
-    const sorted = [...S.layers].sort((a, b) => a.z - b.z)
-    for (const layer of sorted) {
-      S.canvasStack.insertBefore(layer.canvas, S.strokeCanvas)
-      layer.canvas.style.display = layer.visible ? 'block' : 'none'
+    const units = []
+    for (const l of S.layers) units.push({ z: l.z, el: l.canvas, vis: l.visible })
+    for (const { obj } of allObjects()) if (obj._canvas) units.push({ z: obj.z || 0, el: obj._canvas, vis: obj.visible !== false })
+    units.sort((a, b) => a.z - b.z)
+    for (const u of units) {
+      if (!u.el) continue
+      S.canvasStack.insertBefore(u.el, S.strokeCanvas)
+      u.el.style.display = u.vis ? 'block' : 'none'
     }
   }
 
@@ -473,7 +477,7 @@ function setActiveLayer(id) {
       opacity: 1,
       visible: true,
        locked: false,
-      z: S.layers.length
+      z: ++S.zCounter
     }
     saveSnapshot()
     S.layers.push(layer)
@@ -700,6 +704,59 @@ function setActiveLayer(id) {
     renderLayerPanel()
   }
 
+  // ============ 矢量对象独立画布（位图/矢量统一排序） ============
+  function vecCanvasFor(obj) {
+    if (!obj._canvas || !obj._canvas.parentNode) {
+      const c = document.createElement('canvas')
+      c.className = 'iwb-editor-vec-canvas'
+      c.width = S.imgW
+      c.height = S.imgH
+      c.style.position = 'absolute'
+      c.style.top = '0'
+      c.style.left = '0'
+      c.style.display = 'block'
+      S.canvasStack.insertBefore(c, S.strokeCanvas)
+      if (S.imgW && S.fitW) {
+        const vw = Math.round(S.fitW * S.zoom)
+        const vh = Math.round(S.fitH * S.zoom)
+        const vs = S.imgW ? (S.fitW * S.zoom) / S.imgW : 1
+        const vo = Math.round((S.overlayPad || 0) * vs)
+        c.style.width = vw + 'px'; c.style.height = vh + 'px'
+        c.style.left = vo + 'px'; c.style.top = vo + 'px'
+      }
+      obj._canvas = c
+      obj._ctx = c.getContext('2d')
+    }
+    return obj
+  }
+  function removeVecCanvas(obj) {
+    if (obj && obj._canvas) {
+      if (obj._canvas.parentNode) obj._canvas.parentNode.removeChild(obj._canvas)
+      obj._canvas = null
+      obj._ctx = null
+    }
+  }
+  function purgeVectorCanvases() {
+    for (const t of S.textLayers) removeVecCanvas(t)
+    for (const sh of S.shapeLayers) removeVecCanvas(sh)
+  }
+  function drawVectorToCanvas(kind, obj) {
+    vecCanvasFor(obj)
+    const ctx = obj._ctx
+    ctx.clearRect(0, 0, S.imgW, S.imgH)
+    if (kind === 'shape') {
+      drawShape(ctx, obj)
+    } else {
+      ctx.save()
+      ctx.textBaseline = 'top'
+      ctx.globalAlpha = obj.opacity != null ? obj.opacity : 1
+      ctx.font = TEXT_FONT(obj.fontSize)
+      ctx.fillStyle = obj.color
+      ctx.fillText(obj.text, obj.x, obj.y)
+      ctx.restore()
+    }
+  }
+
   /** 切换图层可见性 */
   function toggleLayerVisibility(id) {
     const layer = S.layers.find(l => l.id === id)
@@ -730,6 +787,17 @@ function setActiveLayer(id) {
       layer.canvas.style.height = h + 'px'
       layer.canvas.style.left = offset + 'px'
       layer.canvas.style.top = offset + 'px'
+    }
+    styleVectorViewport(w, h, offset)
+  }
+
+  function styleVectorViewport(w, h, offset) {
+    for (const { obj } of allObjects()) {
+      if (!obj._canvas) continue
+      obj._canvas.style.width = w + 'px'
+      obj._canvas.style.height = h + 'px'
+      obj._canvas.style.left = offset + 'px'
+      obj._canvas.style.top = offset + 'px'
     }
   }
 
@@ -830,6 +898,7 @@ function setActiveLayer(id) {
     all.splice(to, 0, moved)
     saveSnapshot()
     all.forEach((item, index) => { item.obj.z = index })
+    S.zCounter = Math.max(S.zCounter, all.length - 1)
     reorderLayerCanvas()
     sortLayersByZ()
     renderObjects()
@@ -967,6 +1036,7 @@ function setActiveLayer(id) {
   }
 
   function setupCanvas(img) {
+    purgeVectorCanvases()
     // 清除旧的动态图层 canvas
     for (const layer of S.layers) {
       if (layer.canvas.parentNode) layer.canvas.parentNode.removeChild(layer.canvas)
@@ -1021,6 +1091,7 @@ function setActiveLayer(id) {
     })
 
     S.activeLayerId = 'draw' // 默认活跃图层为画笔层
+    S.zCounter = Math.max(S.layers.length - 1, 0)
 
     S.textCtx.clearRect(0, 0, S.imgW, S.imgH)
     S.strokeCtx.clearRect(0, 0, S.imgW, S.imgH)
@@ -1081,6 +1152,7 @@ function setActiveLayer(id) {
     S.textCanvas.style.top = layerOffset + 'px'
     S.strokeCanvas.style.left = layerOffset + 'px'
     S.strokeCanvas.style.top = layerOffset + 'px'
+    styleVectorViewport(w, h, layerOffset)
 
     let left, top
     if (anchor && anchor.mx !== undefined) {
@@ -1127,6 +1199,7 @@ function setActiveLayer(id) {
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 
   function resetState() {
+    purgeVectorCanvases()
     S.history = []
     S.redoStack = []
     S.cropRect = null
@@ -1152,7 +1225,7 @@ function setActiveLayer(id) {
     S.selectedShapeId = null
     S.shapeDrag = null
     S.penPath = null
-    S.zCounter = 0
+    S.zCounter = Math.max(S.layers.length - 1, 0)
     S.placingImage = null
     S.placingHandle = null
     S.placingStart = null
@@ -1220,6 +1293,7 @@ function setActiveLayer(id) {
 
   /** 恢复到指定状态 */
   function restoreState(state) {
+    purgeVectorCanvases()
     if (state.bitmaps) {
       for (let i = 0; i < state.bitmaps.length; i++) {
         const bm = state.bitmaps[i]
@@ -1275,6 +1349,7 @@ function setActiveLayer(id) {
   }
 
   function resetDraw() {
+    purgeVectorCanvases()
     // 清空所有位图图层（保留原图层的内容不变，只清画笔层和后续图层）
     for (const layer of S.layers) {
       if (layer.id !== 'base') {
@@ -1531,18 +1606,21 @@ function setActiveLayer(id) {
     c.width = S.imgW
     c.height = S.imgH
     const cx = c.getContext('2d', { willReadFrequently: true })
-    // 按 z 序绘制位图图层
-    const sorted = [...S.layers].sort((a, b) => a.z - b.z)
-    for (const layer of sorted) {
-      if (!layer.visible) continue
-      cx.globalAlpha = layer.opacity
-      cx.drawImage(layer.canvas, 0, 0)
+    const units = []
+    for (const l of S.layers) units.push({ z: l.z, el: l.canvas, vis: l.visible, op: l.opacity })
+    for (const { obj } of allObjects()) if (obj._canvas) units.push({ z: obj.z || 0, el: obj._canvas, vis: obj.visible !== false, op: obj.opacity != null ? obj.opacity : 1 })
+    units.sort((a, b) => a.z - b.z)
+    cx.globalAlpha = 1
+    for (const u of units) {
+      if (!u.vis) continue
+      cx.globalAlpha = u.op == null ? 1 : u.op
+      cx.drawImage(u.el, 0, 0)
     }
     cx.globalAlpha = 1
-    // 绘制矢量对象层
-    cx.drawImage(S.textCanvas, 0, 0)
     return c
   }
+
+
 
   /** 吸管取样用的合成画布缓存 */
   function getPickerComposite() {
@@ -2123,9 +2201,14 @@ function setActiveLayer(id) {
 
   /** 图层顺序调整 */
   function moveLayer(dir) {
-    const sel = getSelectedObject()
+    let sel = getSelectedObject()
+    if (sel) { if (sel.obj.locked) return } else {
+      const layer = S.layers.find(l => l.id === S.selectedLayerId && l.id !== 'base' && !l.locked)
+      if (layer) sel = { kind: 'bitmap', obj: layer }
+    }
     if (!sel) return
-    const all = allObjects()
+    if (sel.obj.locked) return
+    const all = [...S.layers.map(o => ({ kind: 'bitmap', obj: o })), ...allObjects()].sort((a, b) => (a.obj.z || 0) - (b.obj.z || 0))
     const idx = all.findIndex(o => o.obj === sel.obj)
     if (idx < 0) return
     if ((dir === 'up' || dir === 'top') && idx === all.length - 1) return
@@ -2147,8 +2230,12 @@ function setActiveLayer(id) {
       sel.obj.z = all[0].obj.z - 1
     }
     sortLayersByZ()
+    reorderLayerCanvas()
     renderObjects()
+    renderLayerPanel()
   }
+
+
 
   function shapeHandlePoints(s) {
     if (s.type === 'circle') {
@@ -2269,6 +2356,7 @@ function setActiveLayer(id) {
     const selected = getSelectedShape()
     if (selected && selected.locked) return
     saveSnapshot()
+    removeVecCanvas(selected)
     S.shapeLayers = S.shapeLayers.filter(s => s.id !== S.selectedShapeId)
     S.selectedShapeId = null
     renderObjects()
@@ -2276,24 +2364,10 @@ function setActiveLayer(id) {
 
   /** 重绘对象层 + 选中态 */
   function renderObjects(tempShape) {
-    const ctx = S.textCtx
-    ctx.clearRect(0, 0, S.imgW, S.imgH)
-    ctx.textBaseline = 'top'
-    for (const { kind, obj } of allObjects()) {
-      if (obj.visible === false) continue
-      if (kind === 'shape') {
-        drawShape(ctx, obj)
-      } else {
-        ctx.save()
-        ctx.globalAlpha = obj.opacity != null ? obj.opacity : 1
-        ctx.font = TEXT_FONT(obj.fontSize)
-        ctx.fillStyle = obj.color
-        ctx.fillText(obj.text, obj.x, obj.y)
-        ctx.restore()
-      }
-    }
-    if (tempShape) drawShape(ctx, tempShape)
+    for (const { kind, obj } of allObjects()) drawVectorToCanvas(kind, obj)
+    reorderLayerCanvas()
     clearOverlay()
+    if (tempShape) drawShape(S.overlayCtx, tempShape)
     if (S.tool === 'pen' && S.penPath && S.penPath.pts.length) drawPenPathPreview()
     // 图片放置模式优先显示放置预览
     if (S.placingImage) {
@@ -2330,6 +2404,8 @@ function setActiveLayer(id) {
     if (S.cropRect) drawCropPreview()
     updateLayerUI()
   }
+
+
 
   // ============ 文字输入框 ============
   function showTextInput(x, y, layer) {
@@ -2379,6 +2455,7 @@ function setActiveLayer(id) {
         if (text) {
           t.text = text
         } else {
+          removeVecCanvas(t)
           S.textLayers = S.textLayers.filter(l => l.id !== t.id)
           S.selectedTextId = null
         }
@@ -2411,6 +2488,7 @@ function setActiveLayer(id) {
     const selected = getSelectedText()
     if (selected && selected.locked) return
     saveSnapshot()
+    removeVecCanvas(selected)
     S.textLayers = S.textLayers.filter(t => t.id !== S.selectedTextId)
     S.selectedTextId = null
     renderObjects()
@@ -3011,7 +3089,7 @@ function setActiveLayer(id) {
 
   /** 图层按钮可用态：有选中元素才可用 */
   function updateLayerUI() {
-    const hasSel = !!(S.selectedTextId || S.selectedShapeId)
+    const hasSel = !!(S.selectedTextId || S.selectedShapeId || S.layers.some(l => l.id === S.selectedLayerId && l.id !== 'base' && !l.locked))
     el.querySelectorAll('.iwb-editor-layer-btn').forEach(b => {
       b.disabled = !hasSel
     })
