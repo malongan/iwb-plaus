@@ -196,7 +196,7 @@
             <input class="iwb-editor-text-input" type="text" placeholder="输入文字，Enter确认，Esc取消">
             <div class="iwb-editor-picker-tip"><span class="iwb-editor-picker-chip"></span><span class="iwb-editor-picker-hex">#ffffff</span></div>
             <div class="iwb-editor-crop-bar">
-              <div class="iwb-editor-constraint-group">
+              <div class="iwb-editor-crop-row"><div class="iwb-editor-constraint-group">
                 <span class="iwb-editor-constraint-label">比例</span>
                 <button class="iwb-editor-constraint-btn active" data-ratio="free">自由</button>
                 <button class="iwb-editor-constraint-btn" data-ratio="1:1">1:1</button>
@@ -204,20 +204,20 @@
                 <button class="iwb-editor-constraint-btn" data-ratio="3:4">3:4</button>
                 <button class="iwb-editor-constraint-btn" data-ratio="16:9">16:9</button>
                 <button class="iwb-editor-constraint-btn" data-ratio="9:16">9:16</button>
-              </div>
-              <span class="iwb-editor-constraint-sep"></span>
-              <div class="iwb-editor-constraint-group">
+              </div></div>
+              <div class="iwb-editor-crop-row"><div class="iwb-editor-constraint-group">
                 <span class="iwb-editor-constraint-label">尺寸</span>
                 <input class="iwb-editor-size-input iwb-editor-size-w" type="number" min="1" placeholder="宽" value="800">
                 <span class="iwb-editor-size-x">×</span>
                 <input class="iwb-editor-size-input iwb-editor-size-h" type="number" min="1" placeholder="高" value="800">
                 <button class="iwb-editor-constraint-btn iwb-editor-size-toggle" data-action="toggleSizeConstraint" aria-pressed="false">启用尺寸</button>
                  <button class="iwb-editor-constraint-btn iwb-editor-size-apply" data-action="applySize">应用</button>
-              </div>
-              <span class="iwb-editor-constraint-sep"></span>
-              <span class="iwb-editor-crop-info">--</span>
+              </div></div>
+              <div class="iwb-editor-crop-row iwb-editor-crop-actions"><span class="iwb-editor-crop-info">--</span>
               <button class="iwb-editor-crop-confirm" data-action="confirmCrop">✓ 确认</button>
               <button class="iwb-editor-crop-cancel" data-action="cancelCrop">✗ 取消</button>
+            </div>
+                </div>
             </div>
             <div class="iwb-editor-zoom-hint">滚轮缩放 · 抓手/空格/中键拖拽自由移动画布</div>
           </div>

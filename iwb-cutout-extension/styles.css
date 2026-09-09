@@ -1218,3 +1218,17 @@
 
 /* 顶部实心按钮与工具匹配：默认背景 */
 .iwb-editor-tools .iwb-editor-fill-btn { background: #313244; color: #cdd6f4; }
+
+/* 裁剪工具条：三行展示（比例 / 尺寸 / 确认取消），避免被挤压 */
+.iwb-editor-crop-bar {
+  display: flex !important;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+}
+.iwb-editor-crop-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; width: 100%; gap: 6px; }
+.iwb-editor-crop-row .iwb-editor-constraint-group { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.iwb-editor-crop-actions { gap: 10px; }
+.iwb-editor-crop-actions .iwb-editor-crop-info { min-width: 88px; text-align: center; }
+.iwb-editor-constraint-sep { display: none; }
