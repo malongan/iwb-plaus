@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "IWB 鲜艺抠图节点",
-  "version": "2.9.0",
+  "version": "2.9.1",
   "description": "在生图工作台画布中，为图片节点添加鲜艺AI抠图、白底大图、图层化图片编辑（图层、画笔、裁剪、标注）功能",
   "permissions": [
     "storage",

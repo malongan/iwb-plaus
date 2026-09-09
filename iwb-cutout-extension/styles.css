@@ -1115,3 +1115,45 @@
 .iwb-editor-params .iwb-editor-brush-presets { justify-content: flex-start; }
 .iwb-editor-params .iwb-editor-fill-btn { align-self: stretch; }
 .iwb-editor-main { display: flex; flex-direction: row; }
+
+/* ======== 布局重构 v2（按用户 6 点） ======== */
+.iwb-editor-main { display: flex; flex-direction: row; align-items: stretch; }
+
+/* 顶部一行：标题 + 工具栏(含数字角标) + 撤销重做清空还原 */
+.iwb-editor-header { flex-wrap: nowrap; align-items: center; }
+.iwb-editor-header > .iwb-editor-title { order: 0; }
+.iwb-editor-header > .iwb-editor-tools {
+  position: static; order: 1; flex: 1 1 auto; flex-basis: auto;
+  margin-top: 0; width: auto; left: auto; top: auto;
+  flex-direction: row; justify-content: center;
+  padding: 0; background: transparent; border: 0; border-radius: 0;
+}
+.iwb-editor-header > .iwb-editor-divider { order: 2; }
+.iwb-editor-header > .iwb-editor-history { order: 3; display: flex; align-items: center; gap: 4px; }
+
+/* 左栏：调色板在上，参数竖排，导出按钮底部 */
+.iwb-editor-left {
+  width: 240px; min-width: 240px; flex: 0 0 240px;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 12px; background: #181825; border-right: 1px solid #313244; overflow-y: auto;
+}
+.iwb-editor-left > .iwb-editor-color-panel { padding: 0; background: transparent; border-bottom: 0; }
+.iwb-editor-left > .iwb-editor-params {
+  width: auto; min-width: 0; flex: 1 1 auto;
+  flex-direction: column; align-items: stretch; gap: 12px; margin-left: 0; padding: 0;
+}
+.iwb-editor-left > .iwb-editor-export-actions {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: auto; padding-top: 12px; border-top: 1px solid #313244;
+}
+.iwb-editor-left > .iwb-editor-export-actions .iwb-editor-btn { width: 100%; }
+
+/* 参数竖排：一行一个设置 */
+.iwb-editor-params .iwb-editor-brush-group { display: flex; flex-direction: column; gap: 10px; }
+.iwb-editor-params .iwb-editor-zoom .iwb-editor-zoom-btn,
+.iwb-editor-params .iwb-editor-zoom .iwb-editor-zoom-val { flex: 1 1 auto; }
+.iwb-editor-params .iwb-editor-layer-group { flex-wrap: wrap; }
+
+/* 颜色值后面的 实心/边线 切换 */
+.iwb-editor-fill-pair { display: inline-flex; margin-left: 6px; }
+.iwb-editor-fill-pair .iwb-editor-fill-btn { align-self: center; }
