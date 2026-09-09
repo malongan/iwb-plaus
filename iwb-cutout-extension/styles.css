@@ -1232,3 +1232,10 @@
 .iwb-editor-crop-actions { gap: 10px; }
 .iwb-editor-crop-actions .iwb-editor-crop-info { min-width: 88px; text-align: center; }
 .iwb-editor-constraint-sep { display: none; }
+
+/* ======== 修复：左列(图层)占满高度，三列稳定布局 ======== */
+.iwb-editor-main { display: flex; flex-direction: row; align-items: stretch; }
+.iwb-editor-main > .iwb-editor-layer-panel { flex: 0 0 290px; min-width: 290px; width: 290px; }
+.iwb-editor-main > .iwb-editor-canvas-wrap { flex: 1 1 auto; min-width: 0; }
+.iwb-editor-left { flex: 0 0 240px; min-width: 240px; width: 240px; }
+.iwb-editor-layer-panel .iwb-editor-layer-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
