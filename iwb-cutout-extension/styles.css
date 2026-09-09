@@ -1184,3 +1184,28 @@
 }
 .iwb-editor-params .iwb-editor-zoom .iwb-editor-zoom-btn { flex: 0 0 auto; }
 .iwb-editor-params .iwb-editor-zoom .iwb-editor-zoom-val { flex: 0 0 auto; }
+
+/* ======== 布局优化 v4 ======== */
+/* 交换左右栏：图层在左，调色板/参数在右 */
+.iwb-editor-main { flex-direction: row; }
+.iwb-editor-main > .iwb-editor-layer-panel { order: 1; border-left: 0; border-right: 1px solid #313244; }
+.iwb-editor-main > .iwb-editor-canvas-wrap { order: 2; }
+.iwb-editor-left { order: 3; border-right: 0; border-left: 1px solid #313244; }
+
+/* 硬度/透明度 数值与滑块对齐 */
+.iwb-editor-params .iwb-editor-brush-label .iwb-editor-brush-hardness-val,
+.iwb-editor-params .iwb-editor-brush-label .iwb-editor-brush-opacity-val {
+  min-width: 40px; text-align: right; color: #cdd6f4; font-size: 12px;
+}
+.iwb-editor-params .iwb-editor-brush-label input[type="range"] { flex: 1 1 auto; }
+
+/* 缩放块放在参数区最底部 */
+.iwb-editor-params .iwb-editor-zoom, .iwb-editor-left .iwb-editor-zoom {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 8px 4px; border-top: 1px solid #313244; margin-top: 12px;
+}
+.iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-btn {
+  flex: 0 0 auto; min-width: 28px; height: 26px; background: #313244; color: #cdd6f4; border: 0; border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-btn:hover { background: #45475a; }
+.iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-val { min-width: 52px; text-align: center; color: #cdd6f4; font: 600 12px sans-serif; }
