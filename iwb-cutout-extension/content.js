@@ -19,7 +19,8 @@
     replaceMode: false,
     autoWhiteBg: false,   // 抠图后自动生成白底图
     bgSize: 800,          // 白底画布尺寸（宽高一致）
-    bgRatio: 0.85         // 内容占画布比例（0~1）
+    bgRatio: 0.85,        // 内容占画布比例（0~1）
+    bgMode: 'white'       // 大图背景：white=白底 / transparent=透明底
   }
 
   function loadConfig() {
@@ -131,7 +132,8 @@
    * @param {number} ratio 内容占画布比例（如 0.85 → 内容最长边 = size*ratio）
    * @returns {Promise<string>} dataURL（PNG）
    */
-  async function makeWhiteBgImage(imageData, size, ratio) {
+  async function makeWhiteBgImage(imageData, size, ratio, mode) {
+    mode = mode === 'transparent' ? 'transparent' : 'white'
     let src = imageData.base64
     if (!src && imageData.blobUrl) src = await blobUrlToBase64(imageData.blobUrl)
     if (!src) src = imageData.url
@@ -143,9 +145,11 @@
     canvas.height = size
     const ctx = canvas.getContext('2d')
 
-    // 白底
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, size, size)
+    // 白底模式才填充白色；透明底模式保留透明背景
+    if (mode === 'white') {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, size, size)
+    }
 
     // 内容等比缩放到 size*ratio，居中
     const maxLen = size * ratio
@@ -263,22 +267,27 @@
       const imgData = getImageFromNode(nodeEl)
       if (!imgData) { showToast('未找到图片，请确保节点中有图片', 'error'); return }
 
-      // 2. canvas 生成白底图
-      const whiteBase64 = await makeWhiteBgImage(imgData, config.bgSize, config.bgRatio)
+      // 2. canvas 生成大图（白底 / 透明底）
+      const currentConfig = await new Promise(resolve => chrome.runtime.sendMessage({ type: 'GET_CONFIG' }, r => resolve((r && r.success && r.config) || config)))
+      const size = currentConfig.bgSize || config.bgSize || 800
+      const ratio = currentConfig.bgRatio != null ? currentConfig.bgRatio : (config.bgRatio || 0.85)
+      const mode = currentConfig.bgMode || config.bgMode || 'white'
+      const outBase64 = await makeWhiteBgImage(imgData, size, ratio, mode)
       const sourceName = getNodeImageName(nodeEl) || 'image'
-      const whiteName = sourceName.replace(/\.[^.]+$/, '') + `_${config.bgSize}x${config.bgSize}.png`
+      const outName = sourceName.replace(/\.[^.]+$/, '') + `_${size}x${size}.png`
+      const label = mode === 'transparent' ? '透明底' : '白底'
 
       // 3. 注入结果
-      if (config.replaceMode) {
-        await injectReplaceImage(nodeEl, whiteBase64, whiteName)
+      if (currentConfig.replaceMode != null ? currentConfig.replaceMode : config.replaceMode) {
+        await injectReplaceImage(nodeEl, outBase64, outName)
       } else {
-        await injectNewNode(whiteBase64, whiteName)
+        await injectNewNode(outBase64, outName)
       }
 
-      showToast(config.replaceMode ? '白底图已替换原图' : '白底图节点已创建', 'success')
+      showToast((currentConfig.replaceMode != null ? currentConfig.replaceMode : config.replaceMode) ? `${label}图已替换原图` : `${label}图节点已创建`, 'success')
     } catch (err) {
-      console.error('[IWB抠图] 白底处理失败:', err)
-      showToast(`白底处理失败: ${err.message}`, 'error')
+      console.error('[IWB抠图] 大图处理失败:', err)
+      showToast(`处理失败: ${err.message}`, 'error')
     } finally {
       hideOverlay()
       processingNodes.delete(nodeId)
@@ -598,12 +607,19 @@
 
   /** 判断节点是否带图片（ref 有图 / out 输出图） */
   function nodeHasImage(nodeEl) {
-    return !!(nodeEl.querySelector('.iwb-ref-single, .iwb-ref-show img, .iwb-ref-body img') || nodeEl.querySelector('.iwb-out-cell-img'))
+    // 只处理真实图片节点：参考图(ref)与输出(out)；不含 prompt/llm 等缩略图
+    return !!(nodeEl.querySelector('.iwb-ref-single, .iwb-ref-body .iwb-ref-show img') || nodeEl.querySelector('.iwb-out-cell-img, .iwb-result-thumb'))
   }
 
   /** 在 host 内创建全部工具按钮（抠图/白底/压缩/编辑）。重复调用安全（已有则跳过）。 */
   function addToolButtons(host, nodeEl, beforeEl) {
     if (!host || host.querySelector('.iwb-cutout-btn')) return
+    const nodeId = nodeEl.getAttribute('data-node-id')
+    // React 重建节点时旧 DOM 引用失效：点击时优先取画布上仍然存活的最新节点，
+    // 避免读取到已被替换掉的旧图（修复“编辑器打开的是上一次的图”）
+    const liveNode = () => (nodeEl && nodeEl.isConnected)
+      ? nodeEl
+      : (document.querySelector('.iwb-node[data-node-id="' + nodeId + '"]') || nodeEl)
     const make = (cls, content, color, tip, run) => {
       const b = document.createElement('button')
       b.className = 'iwb-node-del ' + cls
@@ -612,14 +628,15 @@
       b.style.color = color
       bindTip(b, tip)
       b.addEventListener('pointerdown', (e) => e.stopPropagation())
-      b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); run(nodeEl) })
+      b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); run(liveNode()) })
       return b
     }
     const compress = make('iwb-compress-btn', '压', '#16a34a',
       '图片压缩（宽度 ' + (config.compressWidth || 1024) + 'px，质量 ' + (config.compressQuality || 80) + '%）', performCompress)
     const cutout = make('iwb-cutout-btn', SCISSORS_SVG, '#e8a735', '鲜艺AI抠图（去背景）', performCutout)
+    const bgLabel = (config.bgMode === 'transparent') ? '透明底' : '白底'
     const white = make('iwb-whitebg-btn', WHITE_BG_SVG, '#3b82f6',
-      '白底 ' + (config.bgSize || 800) + '×' + (config.bgSize || 800) + '（透明图转白底，内容占 ' + Math.round((config.bgRatio || 0.85) * 100) + '%）', performWhiteBg)
+      bgLabel + ' ' + (config.bgSize || 800) + '×' + (config.bgSize || 800) + '（内容占 ' + Math.round((config.bgRatio || 0.85) * 100) + '%）', performWhiteBg)
     const edit = make('iwb-editor-btn-icon', EDITOR_SVG, '#a855f7', '图片编辑（图层、画笔、裁剪、标注）', performEditor)
     const anchor = beforeEl || host.lastElementChild
     ;[compress, cutout, white, edit].forEach((b) => { host.insertBefore(b, anchor ? anchor.nextSibling : null) })

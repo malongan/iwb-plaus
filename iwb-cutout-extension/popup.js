@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const autoWhiteBgEl = document.getElementById('autoWhiteBg')
   const bgSizeEl = document.getElementById('bgSize')
   const bgRatioEl = document.getElementById('bgRatio')
+  const bgModeEl = document.getElementById('bgMode')
   const compressWidthEl = document.getElementById('compressWidth')
   const compressQualityEl = document.getElementById('compressQuality')
   const modeNewNodeEl = document.getElementById('modeNewNode')
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     autoWhiteBgEl.checked = config.autoWhiteBg === true
     bgSizeEl.value = config.bgSize || DEFAULTS.bgSize
     bgRatioEl.value = Math.round((config.bgRatio || DEFAULTS.bgRatio) * 100)
+    bgModeEl.value = config.bgMode || 'white'
     compressWidthEl.value = config.compressWidth || DEFAULTS.compressWidth
     compressQualityEl.value = config.compressQuality || DEFAULTS.compressQuality
     if (config.replaceMode) {
@@ -83,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
       autoWhiteBg: autoWhiteBgEl.checked,
       bgSize,
       bgRatio,
+      bgMode: bgModeEl.value || 'white',
       compressWidth,
       compressQuality
     }

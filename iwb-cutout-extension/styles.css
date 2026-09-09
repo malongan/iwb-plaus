@@ -1031,3 +1031,8 @@
 .iwb-node-floatbar .iwb-cutout-btn.processing,
 .iwb-node-floatbar .iwb-whitebg-btn.processing,
 .iwb-node-floatbar .iwb-compress-btn.processing { animation: iwb-cutout-pulse 1s infinite; pointer-events: none; }
+
+
+/* 调色板：吸色按钮（替代原来的弹出式取色器） */
+.iwb-editor-color-eye { width: 26px; height: 26px; border: 1px solid #585b70; border-radius: 4px; background: #313244; color: #cdd6f4; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.iwb-editor-color-eye:hover { border-color: #e8a735; color: #e8a735; }

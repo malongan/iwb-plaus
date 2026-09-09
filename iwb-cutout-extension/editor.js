@@ -229,7 +229,7 @@
                 <button class="iwb-editor-layer-add-btn" data-action="addBlankLayer" title="新建空白图层"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>
               </div>
             </div>
-            <div class="iwb-editor-color-panel"><div class="iwb-editor-color-panel-title">调色板</div><div class="iwb-editor-color-picker2"><div class="iwb-color-sv"><span></span></div><div class="iwb-color-hue"><span></span></div></div><div class="iwb-editor-color-fields"><input class="iwb-editor-color-hex-input" value="#ff4444" maxlength="7"><input class="iwb-editor-color-panel-input" type="color" value="#ff4444"></div><div class="iwb-editor-color-swatches"><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff4444" style="background:#ff4444" title="#ff4444"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff8800" style="background:#ff8800" title="#ff8800"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffd400" style="background:#ffd400" title="#ffd400"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#44dd44" style="background:#44dd44" title="#44dd44"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#00bfa5" style="background:#00bfa5" title="#00bfa5"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#4488ff" style="background:#4488ff" title="#4488ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#aa44ff" style="background:#aa44ff" title="#aa44ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff66aa" style="background:#ff66aa" title="#ff66aa"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffffff" style="background:#ffffff" title="#ffffff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#b8b8b8" style="background:#b8b8b8" title="#b8b8b8"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#555555" style="background:#555555" title="#555555"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#000000" style="background:#000000" title="#000000"></button></div></div>
+            <div class="iwb-editor-color-panel"><div class="iwb-editor-color-panel-title">调色板</div><div class="iwb-editor-color-picker2"><div class="iwb-color-sv"><span></span></div><div class="iwb-color-hue"><span></span></div></div><div class="iwb-editor-color-fields"><button type="button" class="iwb-editor-color-eye" data-action="palettePick" title="吸色：点击后在画布取样"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3Z"/></svg></button><input class="iwb-editor-color-hex-input" value="#ff4444" maxlength="7"></div><div class="iwb-editor-color-swatches"><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff4444" style="background:#ff4444" title="#ff4444"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff8800" style="background:#ff8800" title="#ff8800"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffd400" style="background:#ffd400" title="#ffd400"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#44dd44" style="background:#44dd44" title="#44dd44"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#00bfa5" style="background:#00bfa5" title="#00bfa5"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#4488ff" style="background:#4488ff" title="#4488ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#aa44ff" style="background:#aa44ff" title="#aa44ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff66aa" style="background:#ff66aa" title="#ff66aa"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffffff" style="background:#ffffff" title="#ffffff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#b8b8b8" style="background:#b8b8b8" title="#b8b8b8"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#555555" style="background:#555555" title="#555555"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#000000" style="background:#000000" title="#000000"></button></div></div>
 <div class="iwb-editor-layer-list"></div>
           </div>
         </div>
@@ -1161,12 +1161,18 @@ function setActiveLayer(id) {
   }
 
   function close() {
-    if (el) el.style.display = 'none'
+    if (el) {
+      hideTextInput()
+      el.style.display = 'none'
+    }
     S.open = false
     S.callbacks = null
     S.placingImage = null
     S.placingHandle = null
     S.placingStart = null
+    S.penPath = null
+    S.textEditingId = null
+    clearSelection()
   }
 
   // ============ 坐标 ============
@@ -1618,6 +1624,34 @@ function setActiveLayer(id) {
       sh.color = S.color
       renderObjects()
     }
+  }
+
+  /** 切换工具（工具栏按钮、快捷键、调色板吸色共用）。保留同类形状选中以便继续编辑。 */
+  function setTool(tool) {
+    if (S.placingImage) cancelImagePlacement()
+    commitTextInput()
+    if (tool === 'picker' && S.tool !== 'picker') S.prevTool = S.tool
+    if (tool !== 'pen') S.penPath = null
+    S.tool = tool
+    if (tool !== 'select') S.selectedLayerId = null
+    if (tool !== 'text' && tool !== 'select') S.selectedTextId = null
+    if (tool !== 'rect' && tool !== 'circle' && tool !== 'arrow' && tool !== 'pen' && tool !== 'select') S.selectedShapeId = null
+    S.bitmapDrag = null
+    S.textDrag = null
+    S.shapeDrag = null
+    S.pickerComposite = null
+    hidePickerTip()
+    updateToolUI()
+    updateBrushParamUI()
+    if (tool === 'crop') {
+      showCropBar()
+      updateCropInfo()
+    } else {
+      cancelCrop()
+      hideCropBar()
+    }
+    renderObjects()
+    renderLayerPanel()
   }
 
   // ============ 裁剪 ============
@@ -2584,8 +2618,18 @@ function setActiveLayer(id) {
       }
       return
     } else if (S.tool === 'rect' || S.tool === 'arrow' || S.tool === 'circle') {
-      // 绘图工具始终从鼠标位置开始新建，已有图形只由选择工具负责选中/移动。
-      S.selectedShapeId = null
+      const handle = hitShapeHandle(pos)
+      if (handle) { beginShapeHandleDrag(handle, pos); return }
+      const hitShape = hitShapeLayer(pos, true)
+      if (hitShape && hitShape.type === S.tool) {
+        S.selectedShapeId = hitShape.id
+        if (hitShape.locked) { renderObjects(); renderLayerPanel(); return }
+        S.shapeDrag = { mode: 'move', start: pos, shape: { ...hitShape }, pending: snapshotState() }
+        renderObjects()
+        renderLayerPanel()
+        return
+      }
+      if (S.selectedShapeId) { S.selectedShapeId = null; renderObjects(); renderLayerPanel() }
       S.isDrawing = true
     }
   }
@@ -2910,9 +2954,7 @@ function setActiveLayer(id) {
       s.classList.toggle('active', on)
     })
     const panelHex = el.querySelector('.iwb-editor-color-hex')
-    const panelInput = el.querySelector('.iwb-editor-color-panel-input')
     const hexInput = el.querySelector('.iwb-editor-color-hex-input')
-    if (panelInput) panelInput.value = S.color
     if (hexInput && document.activeElement !== hexInput) hexInput.value = S.color.toUpperCase()
     el.querySelectorAll('.iwb-editor-color-panel-swatch').forEach(sw => sw.classList.toggle('active', (sw.dataset.panelColor || '').toLowerCase() === S.color.toLowerCase()))
     if (panelHex) panelHex.textContent = S.color.toUpperCase()
@@ -2980,39 +3022,16 @@ function setActiveLayer(id) {
     // 工具
     el.querySelectorAll('.iwb-editor-tool').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
-      btn.addEventListener('click', () => {
-        if (S.placingImage) { cancelImagePlacement() }
-        commitTextInput()
-        if (btn.dataset.tool === 'picker' && S.tool !== 'picker') S.prevTool = S.tool
-        S.tool = btn.dataset.tool
-        // 选择态只在选择工具中保留；切换到其他工具即退出图片选择
-        if (S.tool !== 'select') S.selectedLayerId = null
-        if (S.tool !== 'text' && S.tool !== 'select') S.selectedTextId = null
-        if (S.tool !== 'rect' && S.tool !== 'circle' && S.tool !== 'arrow' && S.tool !== 'pen' && S.tool !== 'select') S.selectedShapeId = null
-        S.bitmapDrag = null
-        S.pickerComposite = null
-        hidePickerTip()
-        updateToolUI()
-        updateBrushParamUI()
-        if (S.tool === 'crop') {
-          showCropBar()
-          updateCropInfo()
-        } else {
-          cancelCrop()
-          hideCropBar()
-        }
-        renderObjects()
-        renderLayerPanel()
-      })
+      btn.addEventListener('click', () => setTool(btn.dataset.tool))
     })
 
     // 独立颜色面板：颜色选择后同步当前工具颜色。
     const setPanelColor = (color) => applyColorChange(color)
-    const panelInput = el.querySelector('.iwb-editor-color-panel-input')
     const panelHexInput = el.querySelector('.iwb-editor-color-hex-input')
-    if (panelInput) panelInput.addEventListener('input', () => setPanelColor(panelInput.value))
     if (panelHexInput) panelHexInput.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(panelHexInput.value)) setPanelColor(panelHexInput.value) })
     el.querySelectorAll('.iwb-editor-color-panel-swatch').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); setPanelColor(btn.dataset.panelColor) }))
+    const palettePick = el.querySelector('[data-action="palettePick"]')
+    if (palettePick) { palettePick.addEventListener('mousedown', (e) => e.stopPropagation()); palettePick.addEventListener('click', () => setTool('picker')) }
     const sv = el.querySelector('.iwb-color-sv')
     const hue = el.querySelector('.iwb-color-hue')
     let hueValue = 0
@@ -3089,29 +3108,35 @@ function setActiveLayer(id) {
     // 笔触（滑杆 + 数值输入框双向同步）
     const slider = el.querySelector('.iwb-editor-brush-size')
     const brushNum = el.querySelector('.iwb-editor-brush-num')
-    const syncBrushSize = (value) => {
+    let lwHistoryPushed = false
+    const syncBrushSize = (value, continuous) => {
       const v = clamp(parseInt(value, 10) || 1, 1, 300)
       S.brushSize = v
       slider.value = v
       if (brushNum && document.activeElement !== brushNum) brushNum.value = v
-      const panelRange = el.querySelector('.iwb-editor-panel-width-range')
-      const panelNum = el.querySelector('.iwb-editor-panel-width-num')
-      if (panelRange) panelRange.value = v
-      if (panelNum && document.activeElement !== panelNum) panelNum.value = v
+      // 选中形状（矩形/圆形/箭头/钢笔）时同步更新描边粗细
+      const sh = getSelectedShape()
+      if (sh && !sh.locked && sh.lw !== v) {
+        if (!continuous || !lwHistoryPushed) { saveSnapshot(); lwHistoryPushed = true }
+        sh.lw = v
+        renderObjects()
+        renderLayerPanel()
+      }
+      if (!continuous) lwHistoryPushed = false
     }
     el.querySelectorAll('.iwb-editor-brush-preset').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
-      btn.addEventListener('click', () => syncBrushSize(btn.dataset.brushSize))
+      btn.addEventListener('click', () => syncBrushSize(btn.dataset.brushSize, false))
     })
-    slider.addEventListener('input', () => syncBrushSize(slider.value))
-    slider.addEventListener('change', () => syncBrushSize(slider.value))
+    slider.addEventListener('input', () => syncBrushSize(slider.value, true))
+    slider.addEventListener('change', () => syncBrushSize(slider.value, false))
     if (brushNum) {
       brushNum.addEventListener('mousedown', (e) => e.stopPropagation())
       brushNum.addEventListener('input', () => {
         const v = clamp(parseInt(brushNum.value, 10) || 1, 1, 300)
-        syncBrushSize(v)
+        syncBrushSize(v, true)
       })
-      brushNum.addEventListener('blur', () => { brushNum.value = S.brushSize })
+      brushNum.addEventListener('blur', () => { brushNum.value = S.brushSize; lwHistoryPushed = false })
     }
 
     // 画笔硬度
@@ -3357,6 +3382,12 @@ function setActiveLayer(id) {
       return
     }
     if (isTyping(e)) return
+    const toolByKey = { '1': 'select', '2': 'brush', '3': 'eraser', '4': 'pen', '5': 'text', '6': 'rect', '7': 'circle', '8': 'arrow', '9': 'picker', '0': 'crop' }
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && Object.prototype.hasOwnProperty.call(toolByKey, e.key)) {
+      e.preventDefault()
+      setTool(toolByKey[e.key])
+      return
+    }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (S.selectedTextId) { e.preventDefault(); deleteSelectedText(); renderLayerPanel(); return }
       if (S.selectedShapeId) { e.preventDefault(); deleteSelectedShape(); renderLayerPanel(); return }
