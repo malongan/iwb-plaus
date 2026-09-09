@@ -109,7 +109,7 @@
 
             <button class="iwb-editor-tool" data-tool="eraser" title="橡皮：擦除当前活跃图层的内容（画笔标注或原图），与画笔共用大小/硬度/透明度"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
 
-            <button class="iwb-editor-tool" data-tool="pen" title="钢笔：点击添加节点，双击或 Enter 完成自定义形状"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 10l10 10 8-8L12 2Z"/><path d="m4 10 10 10"/><path d="m14 6 4 4"/><path d="M12 2v4"/><path d="M8 6h8"/></svg></button>
+            <button class="iwb-editor-tool" data-tool="pen" title="钢笔：点击添加节点，双击或 Enter 完成自定义形状"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
 
             <button class="iwb-editor-tool" data-tool="text" title="文字"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 3 20 3 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="3" x2="12" y2="20"/></svg></button>
 
@@ -126,6 +126,8 @@
             <span class="iwb-editor-divider"></span>
 
             <button class="iwb-editor-tool" data-tool="crop" title="裁剪"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"/></svg></button>
+          
+            <button class="iwb-editor-fill-btn" data-action="toggleFill" title="矩形实心填充开关（选中矩形时切换即时生效）">实心</button>
           </div>
           <span class="iwb-editor-divider"></span>
           <div class="iwb-editor-history">
@@ -143,22 +145,11 @@
           <aside class="iwb-editor-left">
           <div class="iwb-editor-color-panel"><div class="iwb-editor-color-panel-title">调色板</div><div class="iwb-editor-color-picker2"><div class="iwb-color-sv"><span></span></div><div class="iwb-color-hue"><span></span></div></div><div class="iwb-editor-color-fields"><button type="button" class="iwb-editor-color-eye" data-action="palettePick" title="吸色：点击后在画布取样"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3Z"/></svg></button><input class="iwb-editor-color-hex-input" value="#ff4444" maxlength="7"></div><div class="iwb-editor-color-swatches"><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff4444" style="background:#ff4444" title="#ff4444"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff8800" style="background:#ff8800" title="#ff8800"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffd400" style="background:#ffd400" title="#ffd400"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#44dd44" style="background:#44dd44" title="#44dd44"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#00bfa5" style="background:#00bfa5" title="#00bfa5"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#4488ff" style="background:#4488ff" title="#4488ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#aa44ff" style="background:#aa44ff" title="#aa44ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff66aa" style="background:#ff66aa" title="#ff66aa"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffffff" style="background:#ffffff" title="#ffffff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#b8b8b8" style="background:#b8b8b8" title="#b8b8b8"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#555555" style="background:#555555" title="#555555"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#000000" style="background:#000000" title="#000000"></button></div></div>
           <div class="iwb-editor-params">
-            <div class="iwb-editor-zoom">
-              <button class="iwb-editor-zoom-btn" data-action="zoomOut" title="缩小 (滚轮向下)">−</button>
-              <span class="iwb-editor-zoom-val" title="滚轮缩放">100%</span>
-              <button class="iwb-editor-zoom-btn" data-action="zoomIn" title="放大 (滚轮向上)">＋</button>
-              <button class="iwb-editor-zoom-btn iwb-editor-zoom-fit" data-action="zoomFit" title="适应窗口">适应</button>
-            </div>
+            
             <span class="iwb-editor-divider"></span>
 
             <span class="iwb-editor-divider"></span>
-            <div class="iwb-editor-layer-group" title="调整选中元素的图层顺序">
-              <span class="iwb-editor-constraint-label">图层</span>
-              <button class="iwb-editor-layer-btn" data-layer="top" title="置顶：选中元素移到最上层 (Ctrl+Shift+])"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="5" x2="20" y2="5"/><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg></button>
-              <button class="iwb-editor-layer-btn" data-layer="up" title="上移一层 (Ctrl+])"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg></button>
-              <button class="iwb-editor-layer-btn" data-layer="down" title="下移一层 (Ctrl+[)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/></svg></button>
-              <button class="iwb-editor-layer-btn" data-layer="bottom" title="置底：选中元素移到最下层 (Ctrl+Shift+[)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/><line x1="4" y1="19" x2="20" y2="19"/></svg></button>
-            </div>
+            
             <label class="iwb-editor-brush-label">描边
               <input type="range" class="iwb-editor-brush-size" min="1" max="300" value="3">
               <input type="number" class="iwb-editor-brush-num" min="1" max="300" step="1" value="3" title="输入精确笔刷大小（1~300）">
@@ -178,6 +169,13 @@
                 <input type="range" class="iwb-editor-brush-opacity" min="5" max="100" step="5" value="100">
                 <span class="iwb-editor-brush-opacity-val">100%</span>
               </label>
+            </div>
+          
+            <div class="iwb-editor-zoom">
+              <button class="iwb-editor-zoom-btn" data-action="zoomOut" title="缩小 (滚轮向下)">−</button>
+              <span class="iwb-editor-zoom-val" title="滚轮缩放">100%</span>
+              <button class="iwb-editor-zoom-btn" data-action="zoomIn" title="放大 (滚轮向上)">＋</button>
+              <button class="iwb-editor-zoom-btn iwb-editor-zoom-fit" data-action="zoomFit" title="适应窗口">适应</button>
             </div>
           </div>
           <div class="iwb-editor-export-actions">
@@ -232,8 +230,15 @@
                 <button class="iwb-editor-layer-add-btn" data-action="addBlankLayer" title="新建空白图层"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>
               </div>
             </div>
-            <div class="iwb-editor-color-panel"><div class="iwb-editor-color-panel-title">调色板</div><div class="iwb-editor-color-picker2"><div class="iwb-color-sv"><span></span></div><div class="iwb-color-hue"><span></span></div></div><div class="iwb-editor-color-fields"><button type="button" class="iwb-editor-color-eye" data-action="palettePick" title="吸色：点击后在画布取样"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3Z"/></svg></button><input class="iwb-editor-color-hex-input" value="#ff4444" maxlength="7"><div class="iwb-editor-fill-pair"><button class="iwb-editor-fill-btn" data-action="toggleFill" title="矩形实心填充开关（选中矩形时切换即时生效）">实心</button></div></div><div class="iwb-editor-color-swatches"><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff4444" style="background:#ff4444" title="#ff4444"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff8800" style="background:#ff8800" title="#ff8800"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffd400" style="background:#ffd400" title="#ffd400"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#44dd44" style="background:#44dd44" title="#44dd44"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#00bfa5" style="background:#00bfa5" title="#00bfa5"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#4488ff" style="background:#4488ff" title="#4488ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#aa44ff" style="background:#aa44ff" title="#aa44ff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ff66aa" style="background:#ff66aa" title="#ff66aa"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#ffffff" style="background:#ffffff" title="#ffffff"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#b8b8b8" style="background:#b8b8b8" title="#b8b8b8"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#555555" style="background:#555555" title="#555555"></button><button type="button" class="iwb-editor-color-panel-swatch" data-panel-color="#000000" style="background:#000000" title="#000000"></button></div></div>
-<div class="iwb-editor-layer-list"></div>
+            
+          <div class="iwb-editor-layer-group" title="调整选中元素的图层顺序">
+              <span class="iwb-editor-constraint-label">图层</span>
+              <button class="iwb-editor-layer-btn" data-layer="top" title="置顶：选中元素移到最上层 (Ctrl+Shift+])"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="5" x2="20" y2="5"/><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg></button>
+              <button class="iwb-editor-layer-btn" data-layer="up" title="上移一层 (Ctrl+])"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg></button>
+              <button class="iwb-editor-layer-btn" data-layer="down" title="下移一层 (Ctrl+[)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/></svg></button>
+              <button class="iwb-editor-layer-btn" data-layer="bottom" title="置底：选中元素移到最下层 (Ctrl+Shift+[)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/><line x1="4" y1="19" x2="20" y2="19"/></svg></button>
+            </div>
+          <div class="iwb-editor-layer-list"></div>
           </div>
         </div>
         <div class="iwb-editor-footer">

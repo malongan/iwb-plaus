@@ -1157,3 +1157,30 @@
 /* 颜色值后面的 实心/边线 切换 */
 .iwb-editor-fill-pair { display: inline-flex; margin-left: 6px; }
 .iwb-editor-fill-pair .iwb-editor-fill-btn { align-self: center; }
+
+/* ======== 布局优化 v3 ======== */
+/* 左栏可交互（避免被画布/层级遮挡导致“调节不起作用”） */
+.iwb-editor-left { position: relative; z-index: 40; pointer-events: auto; }
+.iwb-editor-left input, .iwb-editor-left select, .iwb-editor-left button, .iwb-editor-left label { pointer-events: auto; }
+
+/* 顶部工具栏内的 面/边(实心) 切换按钮 */
+.iwb-editor-tools .iwb-editor-fill-btn {
+  width: 42px; height: 32px; padding: 0; border: 0; border-radius: 8px;
+  background: transparent; color: #cdd6f4; cursor: pointer; font-size: 11px; font-weight: 600;
+}
+.iwb-editor-tools .iwb-editor-fill-btn:hover { background: #45475a; }
+.iwb-editor-tools .iwb-editor-fill-btn.active { background: #e8a735; color: #1e1e2e; }
+
+/* 右侧图层面板内的图层顺序按钮 */
+.iwb-editor-layer-panel .iwb-editor-layer-group {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 12px; border-bottom: 1px solid #313244;
+}
+.iwb-editor-layer-panel .iwb-editor-layer-group .iwb-editor-constraint-label { color: #a6adc8; font-size: 12px; margin-right: 2px; }
+
+/* 缩放(画面调整)移到左栏下方 */
+.iwb-editor-params .iwb-editor-zoom {
+  order: 99; margin-top: 10px; padding-top: 10px; border-top: 1px solid #313244;
+}
+.iwb-editor-params .iwb-editor-zoom .iwb-editor-zoom-btn { flex: 0 0 auto; }
+.iwb-editor-params .iwb-editor-zoom .iwb-editor-zoom-val { flex: 0 0 auto; }
