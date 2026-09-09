@@ -608,7 +608,7 @@
     return !!(nodeEl.querySelector('.iwb-ref-emptybox') || (nodeEl.querySelector('.iwb-ref-body') && !nodeEl.querySelector('.iwb-ref-single, .iwb-ref-show img')))
   }
   // 与应用侧常用尺寸一致：比例 × 清晰度（1K/2K/4K）
-  const BLANK_RES_KEYS = ['1K', '2K', '4K']
+  const BLANK_RES_KEYS = ['1K']
   const BLANK_RATIOS = [
     { value: '1:1', label: '1:1 方形', sizes: { '1K': '1024x1024', '2K': '2048x2048', '4K': '2864x2864' } },
     { value: '2:3', label: '2:3 竖版', sizes: { '1K': '832x1248', '2K': '1536x2304', '4K': '2048x3072' } },
@@ -647,6 +647,8 @@
     })
   }
   async function performBlankCanvas(nodeEl, w, h, bg) {
+    closeBlankMenu()
+    bg = bg === 'transparent' ? 'transparent' : 'white'
     const nodeId = nodeEl.getAttribute('data-node-id')
     if (!nodeId || processingNodes.has(nodeId)) return
     processingNodes.add(nodeId); setButtonProcessing(nodeEl, true)
@@ -673,36 +675,28 @@
     closeBlankMenu()
     const menu = document.createElement('div')
     menu.className = 'iwb-blank-menu'
-    let resKey = '1K'
-    let bg = 'white'
     const r = btn.getBoundingClientRect()
     menu.style.left = Math.max(8, Math.min(window.innerWidth - 250, r.right - 230)) + 'px'
     menu.style.top = Math.max(8, r.bottom + 6) + 'px'
-    const paint = () => {
-      let html = '<div class="iwb-blank-title">创建空白画布</div>'
-      html += '<div class="iwb-blank-bg"><span>底色</span>' +
-        '<button type="button" data-bg="white"' + (bg === 'white' ? ' class="on"' : '') + '>白色</button>' +
-        '<button type="button" data-bg="transparent"' + (bg === 'transparent' ? ' class="on"' : '') + '>透明</button></div>'
-      html += '<div class="iwb-blank-res">' + BLANK_RES_KEYS.map(k => '<button type="button" data-res="' + k + '"' + (k === resKey ? ' class="on"' : '') + '>' + k + '</button>').join('') + '</div>'
-      html += '<div class="iwb-blank-grid">' + BLANK_RATIOS.map(rp => {
-        const dim = parseSizeText((rp.sizes && rp.sizes[resKey]) || '1024x1024')
-        return '<button type="button" data-w="' + dim.w + '" data-h="' + dim.h + '"><b>' + rp.label + '</b><i>' + dim.w + '×' + dim.h + '</i></button>'
-      }).join('') + '</div>'
-      menu.innerHTML = html
-      menu.querySelectorAll('[data-bg]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); bg = b.dataset.bg; paint() }))
-      menu.querySelectorAll('[data-res]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); resKey = b.dataset.res; paint() }))
-      menu.querySelectorAll('[data-w]').forEach(b => b.addEventListener('click', (e) => {
-        e.stopPropagation()
-        const w = parseInt(b.dataset.w, 10), h = parseInt(b.dataset.h, 10)
-        closeBlankMenu()
-        performBlankCanvas(nodeEl, w, h, bg)
-      }))
-    }
-    paint()
+    let html = '<div class="iwb-blank-title">创建空白画布</div><div class="iwb-blank-grid">'
+    html += BLANK_RATIOS.map(rp => {
+      const dim = parseSizeText((rp.sizes && rp.sizes['1K']) || '1024x1024') || { w: 1024, h: 1024 }
+      return '<button type="button" data-w="' + dim.w + '" data-h="' + dim.h + '"><b>' + rp.label + '</b><i>' + dim.w + '×' + dim.h + '</i></button>'
+    }).join('')
+    html += '</div>'
+    menu.innerHTML = html
+    menu.querySelectorAll('[data-w]').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const w = parseInt(b.dataset.w, 10), h = parseInt(b.dataset.h, 10)
+      closeBlankMenu()
+      performBlankCanvas(nodeEl, w, h, 'white')
+    }))
     document.body.appendChild(menu)
     blankMenuOutsideHandler = (e) => { if (!blankMenuEl || !blankMenuEl.contains(e.target)) closeBlankMenu() }
     document.addEventListener('pointerdown', blankMenuOutsideHandler, true)
   }
+
+
   function addBlankToolButton(host, nodeEl, beforeEl) {
     if (!host || host.querySelector('.iwb-blank-canvas-btn')) return
     const b = document.createElement('button')
@@ -766,7 +760,11 @@
       const headBtns = nodeEl.querySelector('.iwb-node-headbtns')
       if (!headBtns) return
       const copyBtn = headBtns.querySelector('[title*="复制节点"]')
-      if (nodeHasImage(nodeEl)) addToolButtons(headBtns, nodeEl, copyBtn || null)
+      if (nodeHasImage(nodeEl)) {
+        addToolButtons(headBtns, nodeEl, copyBtn || null)
+      } else if (isEmptyRefNode(nodeEl)) {
+        addBlankToolButton(headBtns, nodeEl, copyBtn || null)
+      }
     })
   }
 
@@ -787,6 +785,10 @@
         if (score < bestScore) { bestScore = score; best = n }
       }
     })
+    if (!best) {
+      const selNode = document.querySelector('.iwb-node.iwb-node-selected[data-node-id]')
+      if (selNode) return selNode
+    }
     return best
   }
 
@@ -794,31 +796,12 @@
     document.querySelectorAll('.iwb-node-floatbar').forEach((bar) => {
       if (bar.querySelector('.iwb-cutout-btn')) return
       const nodeEl = findFloatbarNode(bar)
-      if (!nodeEl || !nodeHasImage(nodeEl)) return
+      if (!nodeEl) return
       const danger = bar.querySelector('.iwb-node-floatbar-danger, [title="删除节点"]')
       if (nodeHasImage(nodeEl)) {
         addToolButtons(bar, nodeEl, danger || null)
       } else if (isEmptyRefNode(nodeEl)) {
         addBlankToolButton(bar, nodeEl, danger || null)
-      }
-    })
-  }
-
-  /** 常驻入口：向空参考图节点自身注入“空白画布”按钮（不依赖 floatbar/坐标匹配） */
-  function injectNodeBlankButtons() {
-    document.querySelectorAll('.iwb-node[data-node-id]').forEach(nodeEl => {
-      const inline = nodeEl.querySelector('.iwb-blank-inline-btn')
-      if (isEmptyRefNode(nodeEl)) {
-        if (inline) return
-        const b = document.createElement('button')
-        b.className = 'iwb-blank-inline-btn'
-        b.innerHTML = BLANK_CANVAS_SVG + '<span>空白画布</span>'
-        bindTip(b, '空白画布：创建指定尺寸白色底图并打开绘制（插图/标注）')
-        b.addEventListener('pointerdown', (e) => e.stopPropagation())
-        b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); showBlankMenu(b, nodeEl) })
-        nodeEl.appendChild(b)
-      } else if (inline) {
-        inline.remove()
       }
     })
   }
@@ -833,7 +816,6 @@
       injectFrame = 0
       injectCutoutButtons()
       injectFloatbarButtons()
-      injectNodeBlankButtons()
     })
   }
 
@@ -848,7 +830,7 @@
       setTimeout(init, 500)
       return
     }
-    setTimeout(() => { injectCutoutButtons(); injectFloatbarButtons(); injectNodeBlankButtons() }, 1500)
+    setTimeout(() => { injectCutoutButtons(); injectFloatbarButtons() }, 1500)
   }
 
   if (document.readyState === 'loading') {
