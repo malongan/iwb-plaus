@@ -3298,12 +3298,14 @@ function setActiveLayer(id) {
     })
 
     const colorInput = el.querySelector('.iwb-editor-color-picker-input')
-    colorInput.addEventListener('mousedown', (e) => e.stopPropagation())
-    colorInput.addEventListener('input', () => applyColorChange(colorInput.value))
+    if (colorInput) {
+      colorInput.addEventListener('mousedown', (e) => e.stopPropagation())
+      colorInput.addEventListener('input', () => applyColorChange(colorInput.value))
+    }
 
     // 实心矩形开关
     const fillBtn = el.querySelector('[data-action="toggleFill"]')
-    fillBtn.addEventListener('mousedown', (e) => e.stopPropagation())
+    if (fillBtn) fillBtn.addEventListener('mousedown', (e) => e.stopPropagation())
     fillBtn.addEventListener('click', () => {
       S.rectFill = !S.rectFill
       updateFillUI()
