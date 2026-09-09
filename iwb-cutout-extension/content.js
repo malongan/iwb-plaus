@@ -766,11 +766,7 @@
       const headBtns = nodeEl.querySelector('.iwb-node-headbtns')
       if (!headBtns) return
       const copyBtn = headBtns.querySelector('[title*="复制节点"]')
-      if (nodeHasImage(nodeEl)) {
-        addToolButtons(headBtns, nodeEl, copyBtn || null)
-      } else if (isEmptyRefNode(nodeEl)) {
-        addBlankToolButton(headBtns, nodeEl, copyBtn || null)
-      }
+      if (nodeHasImage(nodeEl)) addToolButtons(headBtns, nodeEl, copyBtn || null)
     })
   }
 
@@ -808,6 +804,25 @@
     })
   }
 
+  /** 常驻入口：向空参考图节点自身注入“空白画布”按钮（不依赖 floatbar/坐标匹配） */
+  function injectNodeBlankButtons() {
+    document.querySelectorAll('.iwb-node[data-node-id]').forEach(nodeEl => {
+      const inline = nodeEl.querySelector('.iwb-blank-inline-btn')
+      if (isEmptyRefNode(nodeEl)) {
+        if (inline) return
+        const b = document.createElement('button')
+        b.className = 'iwb-blank-inline-btn'
+        b.innerHTML = BLANK_CANVAS_SVG + '<span>空白画布</span>'
+        bindTip(b, '空白画布：创建指定尺寸白色底图并打开绘制（插图/标注）')
+        b.addEventListener('pointerdown', (e) => e.stopPropagation())
+        b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); showBlankMenu(b, nodeEl) })
+        nodeEl.appendChild(b)
+      } else if (inline) {
+        inline.remove()
+      }
+    })
+  }
+
   // ============ 初始化 ============
 
   // React 更新节点时可能在同一帧内产生大量 mutation；合并扫描，避免重复遍历整棵树。
@@ -818,6 +833,7 @@
       injectFrame = 0
       injectCutoutButtons()
       injectFloatbarButtons()
+      injectNodeBlankButtons()
     })
   }
 
@@ -832,7 +848,7 @@
       setTimeout(init, 500)
       return
     }
-    setTimeout(injectCutoutButtons, 1500)
+    setTimeout(() => { injectCutoutButtons(); injectFloatbarButtons(); injectNodeBlankButtons() }, 1500)
   }
 
   if (document.readyState === 'loading') {
