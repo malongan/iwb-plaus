@@ -691,6 +691,7 @@
       closeBlankMenu()
       performBlankCanvas(nodeEl, w, h, 'white')
     }))
+    blankMenuEl = menu
     document.body.appendChild(menu)
     blankMenuOutsideHandler = (e) => { if (!blankMenuEl || !blankMenuEl.contains(e.target)) closeBlankMenu() }
     document.addEventListener('pointerdown', blankMenuOutsideHandler, true)
