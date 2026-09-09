@@ -1212,3 +1212,9 @@
 
 /* 调色板与下方参数调节之间的横线分割 */
 .iwb-editor-params { border-top: 1px solid #313244; padding-top: 12px; }
+
+/* 色相条指示器需定位父级相对 */
+.iwb-color-hue { position: relative; }
+
+/* 顶部实心按钮与工具匹配：默认背景 */
+.iwb-editor-tools .iwb-editor-fill-btn { background: #313244; color: #cdd6f4; }

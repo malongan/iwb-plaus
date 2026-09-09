@@ -127,6 +127,8 @@
 
             <button class="iwb-editor-tool" data-tool="crop" title="裁剪"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"/></svg></button>
 
+            <span class="iwb-editor-divider"></span>
+
             <button class="iwb-editor-fill-btn" data-action="toggleFill" title="矩形实心填充开关（选中矩形时切换即时生效）">实心</button>
           </div>
           <span class="iwb-editor-divider"></span>
@@ -3247,16 +3249,34 @@ function setActiveLayer(id) {
     if (palettePick) { palettePick.addEventListener('mousedown', (e) => e.stopPropagation()); palettePick.addEventListener('click', () => setTool('picker')) }
     const sv = el.querySelector('.iwb-color-sv')
     const hue = el.querySelector('.iwb-color-hue')
-    let hueValue = 0
+    const initHsv = (() => {
+      const { r, g, b } = hexToRgb(S.color)
+      const rr = r / 255, gg = g / 255, bb = b / 255
+      const max = Math.max(rr, gg, bb), min = Math.min(rr, gg, bb), d = max - min
+      let h = 0
+      if (d) { if (max === rr) h = 60 * (((gg - bb) / d) % 6); else if (max === gg) h = 60 * ((bb - rr) / d + 2); else h = 60 * ((rr - gg) / d + 4) }
+      if (h < 0) h += 360
+      return { h, sat: max ? d / max : 0, val: max }
+    })()
+    let hueValue = initHsv.h
+    let satValue = initHsv.sat
+    let valValue = initHsv.val
     const hsvToHex = (h, sat, val) => {
       const c = val * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = val - c
       let r = 0, g = 0, b = 0
       if (h < 60) { r = c; g = x } else if (h < 120) { r = x; g = c } else if (h < 180) { g = c; b = x } else if (h < 240) { g = x; b = c } else if (h < 300) { r = x; b = c } else { r = c; b = x }
       return rgbToHex(Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255))
     }
-    const pick = (target, e) => { const r = target.getBoundingClientRect(); const x = clamp((e.clientX-r.left)/r.width,0,1); const y = clamp((e.clientY-r.top)/r.height,0,1); setPanelColor(target === hue ? hsvToHex(hueValue,1,1) : hsvToHex(hueValue,x,1-y)) }
-    if (sv) { sv.addEventListener('pointerdown', e => { sv.setPointerCapture(e.pointerId); pick(sv,e) }); sv.addEventListener('pointermove', e => { if (e.buttons) pick(sv,e) }) }
-    if (hue) { hue.addEventListener('pointerdown', e => { const r=hue.getBoundingClientRect(); hueValue=clamp((e.clientY-r.top)/r.height,0,1)*360; setPanelColor(hsvToHex(hueValue,1,1)) }) }
+    const pick = (target, e) => {
+      const r = target.getBoundingClientRect()
+      const x = clamp((e.clientX - r.left) / r.width, 0, 1)
+      const y = clamp((e.clientY - r.top) / r.height, 0, 1)
+      if (target === hue) hueValue = y * 360
+      else { satValue = x; valValue = 1 - y }
+      setPanelColor(hsvToHex(hueValue, satValue, valValue))
+    }
+    if (sv) { sv.addEventListener('pointerdown', e => { sv.setPointerCapture(e.pointerId); pick(sv, e) }); sv.addEventListener('pointermove', e => { if (e.buttons) pick(sv, e) }) }
+    if (hue) { hue.addEventListener('pointerdown', e => { pick(hue, e) }); hue.addEventListener('pointermove', e => { if (e.buttons) pick(hue, e) }) }
     // 比例约束按钮
     el.querySelectorAll('.iwb-editor-constraint-btn[data-ratio]').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
