@@ -1239,3 +1239,43 @@
 .iwb-editor-main > .iwb-editor-canvas-wrap { flex: 1 1 auto; min-width: 0; }
 .iwb-editor-left { flex: 0 0 240px; min-width: 240px; width: 240px; }
 .iwb-editor-layer-panel .iwb-editor-layer-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* ======== 顶部布局 v5：左侧重置类 / 中间工具 / 右侧保存类 ======== */
+.iwb-editor-header > .iwb-editor-title { order: 0; }
+.iwb-editor-header > .iwb-editor-history { order: 1; display: flex; align-items: center; gap: 4px; }
+.iwb-editor-header > .iwb-editor-tools { order: 2; flex: 1 1 auto; justify-content: center; }
+.iwb-editor-header > .iwb-editor-export-actions { order: 3; display: flex; align-items: center; gap: 6px; margin-left: 4px; }
+
+/* 重置类（撤销/重做/清空/复原）统一小圆角按钮 */
+.iwb-editor-header .iwb-editor-history .iwb-editor-action {
+  width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px;
+  background: #313244; color: #cdd6f4; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.iwb-editor-header .iwb-editor-history .iwb-editor-action:hover { background: #45475a; }
+.iwb-editor-header .iwb-editor-history .iwb-editor-action-restore { background: #313244; color: #cdd6f4; }
+
+/* 保存类（新建/覆盖/退出）统一样式 */
+.iwb-editor-header .iwb-editor-export-actions .iwb-editor-btn {
+  height: 30px; padding: 0 14px; border: 0; border-radius: 8px; font-size: 12px; font-weight: 600;
+  background: #313244; color: #cdd6f4; cursor: pointer;
+}
+.iwb-editor-header .iwb-editor-export-actions .iwb-editor-btn:hover { background: #45475a; }
+
+/* 调色板与参数之间的分割线及间距 */
+.iwb-editor-left > .iwb-editor-params { border-top: 1px solid #313244; margin-top: 16px; padding-top: 16px; }
+
+/* 笔刷快捷值 7 档圆点 */
+.iwb-editor-brush-presets { display: flex; align-items: center; gap: 8px; }
+.iwb-editor-brush-preset i { width: 6px; height: 6px; }
+.iwb-editor-brush-preset:nth-child(2) i { width: 8px; height: 8px; }
+.iwb-editor-brush-preset:nth-child(3) i { width: 10px; height: 10px; }
+.iwb-editor-brush-preset:nth-child(4) i { width: 13px; height: 13px; }
+.iwb-editor-brush-preset:nth-child(5) i { width: 16px; height: 16px; }
+.iwb-editor-brush-preset:nth-child(6) i { width: 20px; height: 20px; }
+.iwb-editor-brush-preset:nth-child(7) i { width: 24px; height: 24px; }
+
+/* 缩放：缩小比例、圆角 */
+.iwb-editor-left .iwb-editor-zoom { gap: 6px; padding: 6px 4px; margin-top: 10px; }
+.iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-btn { min-width: 26px; height: 24px; border-radius: 8px; font-size: 13px; }
+.iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-val { min-width: 44px; font-size: 11px; }
+.iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-fit { font-size: 11px; padding: 0 8px; }

@@ -102,6 +102,12 @@
       <div class="iwb-editor-modal">
         <div class="iwb-editor-header">
           <span class="iwb-editor-title">图片编辑</span>
+          <div class="iwb-editor-history">
+            <button class="iwb-editor-action" data-action="undo" title="撤销 (Ctrl+Z)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+            <button class="iwb-editor-action" data-action="redo" title="重做 (Ctrl+Shift+Z)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+            <button class="iwb-editor-action" data-action="reset" title="清空标注"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            <button class="iwb-editor-action iwb-editor-action-restore" data-action="restore" title="复原原始图（撤销所有编辑）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
+          </div>
           <div class="iwb-editor-tools">
             <button class="iwb-editor-tool" data-tool="select" title="选择/移动：点击元素选中，拖拽移动，手柄调整大小，双击文字改内容"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg></button>
 
@@ -132,16 +138,17 @@
             <button class="iwb-editor-fill-btn" data-action="toggleFill" title="矩形实心填充开关（选中矩形时切换即时生效）">实心</button>
           </div>
           <span class="iwb-editor-divider"></span>
-          <div class="iwb-editor-history">
-            <button class="iwb-editor-action" data-action="undo" title="撤销 (Ctrl+Z)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
-            <button class="iwb-editor-action" data-action="redo" title="重做 (Ctrl+Shift+Z)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
-            <button class="iwb-editor-action" data-action="reset" title="清空标注"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
-            <button class="iwb-editor-action iwb-editor-action-restore" data-action="restore" title="复原原始图（撤销所有编辑）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
+
+
+
+
+
+
+          <div class="iwb-editor-export-actions">
+            <button class="iwb-editor-btn iwb-editor-btn-new" data-action="newNode">新建</button>
+            <button class="iwb-editor-btn iwb-editor-btn-replace" data-action="replace">覆盖</button>
+            <button class="iwb-editor-btn iwb-editor-btn-cancel" data-action="cancel">退出</button>
           </div>
-
-
-
-
         </div>
         <div class="iwb-editor-main">
 
@@ -209,10 +216,13 @@
               <input type="number" class="iwb-editor-brush-num" min="1" max="300" step="1" value="3" title="输入精确笔刷大小（1~300）">
             </label>
             <div class="iwb-editor-brush-presets" aria-label="描边快捷值">
+              <button type="button" class="iwb-editor-brush-preset" data-brush-size="2" title="描边 2"><i></i></button>
               <button type="button" class="iwb-editor-brush-preset" data-brush-size="4" title="描边 4"><i></i></button>
               <button type="button" class="iwb-editor-brush-preset" data-brush-size="8" title="描边 8"><i></i></button>
+              <button type="button" class="iwb-editor-brush-preset" data-brush-size="12" title="描边 12"><i></i></button>
               <button type="button" class="iwb-editor-brush-preset" data-brush-size="16" title="描边 16"><i></i></button>
               <button type="button" class="iwb-editor-brush-preset" data-brush-size="24" title="描边 24"><i></i></button>
+              <button type="button" class="iwb-editor-brush-preset" data-brush-size="32" title="描边 32"><i></i></button>
             </div>
             <div class="iwb-editor-brush-group">
               <label class="iwb-editor-brush-label">硬度
@@ -227,11 +237,7 @@
 
 
           </div>
-          <div class="iwb-editor-export-actions">
-          <button class="iwb-editor-btn iwb-editor-btn-cancel" data-action="cancel">退出编辑</button>
-          <button class="iwb-editor-btn iwb-editor-btn-new" data-action="newNode">新建节点</button>
-          <button class="iwb-editor-btn iwb-editor-btn-replace" data-action="replace">覆盖原图</button>
-           </div>
+
 
           <div class="iwb-editor-zoom">
               <button class="iwb-editor-zoom-btn" data-action="zoomOut" title="缩小 (滚轮向下)">−</button>
