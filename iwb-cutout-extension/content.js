@@ -772,24 +772,6 @@
     ;[compress, cutout, white, edit].forEach((b) => { host.insertBefore(b, anchor ? anchor.nextSibling : null) })
   }
 
-  /** 旧版：注入到节点标题栏 .iwb-node-headbtns（仅当标题栏可见时使用） */
-  function injectCutoutButtons() {
-    const nodes = document.querySelectorAll('.iwb-node[data-node-id]')
-    nodes.forEach(nodeEl => {
-      const head = nodeEl.querySelector('.iwb-node-head')
-      if (!head) return
-      const headStyle = window.getComputedStyle ? window.getComputedStyle(head) : null
-      if (headStyle && headStyle.display === 'none') return
-      const headBtns = nodeEl.querySelector('.iwb-node-headbtns')
-      if (!headBtns) return
-      const copyBtn = headBtns.querySelector('[title*="复制节点"]')
-      if (nodeHasImage(nodeEl)) {
-        addToolButtons(headBtns, nodeEl, copyBtn || null)
-      } else if (isEmptyRefNode(nodeEl)) {
-        addBlankToolButton(headBtns, nodeEl, copyBtn || null)
-      }
-    })
-  }
 
   /** 新版：把工具按钮注入到选中节点的浮动气泡栏 .iwb-node-floatbar */
   function findFloatbarNode(bar) {
@@ -814,75 +796,56 @@
     }
     return best
   }
-
-  function injectFloatbarButtons() {
-    document.querySelectorAll('.iwb-node-floatbar').forEach((bar) => {
-      const nodeEl = findFloatbarNode(bar)
-      if (!nodeEl) return
-      const danger = bar.querySelector('.iwb-node-floatbar-danger, [title="删除节点"]')
-      if (nodeHasImage(nodeEl)) {
-        addToolButtons(bar, nodeEl, danger || null)
-      } else if (isEmptyRefNode(nodeEl)) {
-        addBlankToolButton(bar, nodeEl, danger || null)
-      }
-    })
+  // ============ 独立悬浮工具条（不插入应用 React DOM，避免干扰拖动与气泡渲染） ============
+  let toolbarEl = null
+  let toolbarNodeId = ''
+  function ensureToolbar() {
+    if (toolbarEl && toolbarEl.parentNode) return toolbarEl
+    toolbarEl = document.createElement('div')
+    toolbarEl.id = 'iwb-cutout-toolbar'
+    toolbarEl.className = 'iwb-cutout-toolbar'
+    document.body.appendChild(toolbarEl)
+    return toolbarEl
+  }
+  function hideToolbar() {
+    if (toolbarEl) { toolbarEl.style.display = 'none'; toolbarEl.innerHTML = '' }
+    toolbarNodeId = ''
+  }
+  function updateToolbar() {
+    const bar = document.querySelector('.iwb-node-floatbar')
+    if (!bar) { hideToolbar(); return }
+    // 优先使用“当前选中的节点”，其次按气泡位置匹配
+    let nodeEl = document.querySelector('.iwb-node.iwb-node-selected[data-node-id]')
+    if (!nodeEl) nodeEl = findFloatbarNode(bar)
+    if (!nodeEl) { hideToolbar(); return }
+    ensureToolbar()
+    const id = nodeEl.getAttribute('data-node-id') || ''
+    if (id !== toolbarNodeId) {
+      toolbarEl.innerHTML = ''
+      if (nodeHasImage(nodeEl)) addToolButtons(toolbarEl, nodeEl, null)
+      else if (isEmptyRefNode(nodeEl)) addBlankToolButton(toolbarEl, nodeEl, null)
+      toolbarNodeId = id
+    }
+    const r = bar.getBoundingClientRect()
+    if (!r.width && !r.height) { hideToolbar(); return }
+    toolbarEl.style.display = 'flex'
+    toolbarEl.style.top = Math.round(r.top) + 'px'
+    let left = r.right + 6
+    const w = toolbarEl.offsetWidth || 0
+    if (w && left + w > window.innerWidth - 8) left = Math.max(8, r.left - w - 6)
+    toolbarEl.style.left = Math.round(left) + 'px'
   }
 
   // ============ 初始化 ============
-
-  // React 更新节点时可能在同一帧内产生大量 mutation；合并扫描，避免重复遍历整棵树。
-  let injectFrame = 0
-  // 节点拖动期间暂停注入：拖动时应用每帧重绘气泡栏，扩展若持续插入按钮会干扰
-  // 应用的拖拽渲染（表现为节点不跟随鼠标、松手后才跳动）。
-  let nodeDragActive = false
-  function isNodeDragging() {
-    if (nodeDragActive) return true
-    try {
-      if (document.documentElement && document.documentElement.classList.contains('iwb-dragging')) return true
-      if (document.querySelector('.iwb-node-dragging')) return true
-    } catch (e) { /* ignore */ }
-    return false
-  }
-  function scheduleButtonInjection() {
-    if (isNodeDragging()) return
-    if (injectFrame) return
-    injectFrame = requestAnimationFrame(() => {
-      injectFrame = 0
-      if (isNodeDragging()) return
-      injectCutoutButtons()
-      injectFloatbarButtons()
-    })
-  }
-
-  // 记录节点拖动（pointerdown 落在节点上、且不是扩展按钮），松手/取消后恢复注入
-  document.addEventListener('pointerdown', (e) => {
-    const t = e.target
-    if (!t || !t.closest) return
-    if (!t.closest('.iwb-node[data-node-id]')) return
-    if (t.closest('.iwb-cutout-btn, .iwb-whitebg-btn, .iwb-compress-btn, .iwb-editor-btn-icon, .iwb-blank-canvas-btn, .iwb-cutout-menu, .iwb-blank-menu')) return
-    nodeDragActive = true
-  }, true)
-  const endNodeDrag = () => {
-    if (!nodeDragActive) return
-    nodeDragActive = false
-    scheduleButtonInjection()
-  }
-  document.addEventListener('pointerup', endNodeDrag, true)
-  document.addEventListener('pointercancel', endNodeDrag, true)
-  window.addEventListener('blur', () => { nodeDragActive = false })
-
-  const observer = new MutationObserver(scheduleButtonInjection)
-
+  // 独立工具条用 requestAnimationFrame 跟随应用气泡栏位置；只改扩展自身 DOM，绝不修改应用 DOM。
   function init() {
-    document.body.appendChild(overlay)
-    const root = document.getElementById('root')
-    if (root) {
-      observer.observe(root, { childList: true, subtree: true })
-    } else {
-      setTimeout(init, 500)
-      return
+    if (!document.body.contains(overlay)) document.body.appendChild(overlay)
+    ensureToolbar()
+    const loop = () => {
+      try { updateToolbar() } catch (e) { /* ignore */ }
+      requestAnimationFrame(loop)
     }
-    setTimeout(() => { injectCutoutButtons(); injectFloatbarButtons() }, 1500)
+    requestAnimationFrame(loop)
   }
 
   if (document.readyState === 'loading') {
@@ -906,6 +869,6 @@
       const el = document.querySelector(`[data-node-id="${nodeId}"]`)
       if (el) performEditor(el)
     },
-    inject: injectCutoutButtons
+    inject: updateToolbar
   }
 })()
