@@ -699,14 +699,27 @@
 
 
   function addBlankToolButton(host, nodeEl, beforeEl) {
-    if (!host || host.querySelector('.iwb-blank-canvas-btn')) return
+    if (!host) return
+    const nodeId = nodeEl.getAttribute('data-node-id')
+    const existing = host.querySelector('.iwb-blank-canvas-btn')
+    if (existing) {
+      if (existing.dataset.nodeId === nodeId) return
+      existing.remove()
+    }
+    const liveNode = () => {
+      const sel = document.querySelector('.iwb-node.iwb-node-selected[data-node-id]')
+      if (sel) return sel
+      const byId = nodeId ? document.querySelector('.iwb-node[data-node-id="' + nodeId + '"]') : null
+      return byId || nodeEl
+    }
     const b = document.createElement('button')
     b.className = 'iwb-node-del iwb-blank-canvas-btn'
     b.innerHTML = BLANK_CANVAS_SVG
+    b.dataset.nodeId = nodeId || ''
     b.style.color = '#0ea5e9'
     bindTip(b, '空白画布：创建指定尺寸空白图并打开绘制（插图/标注）')
     b.addEventListener('pointerdown', (e) => e.stopPropagation())
-    b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); showBlankMenu(b, nodeEl) })
+    b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); showBlankMenu(b, liveNode()) })
     const anchor = beforeEl || host.lastElementChild
     host.insertBefore(b, anchor ? anchor.nextSibling : null)
   }
@@ -721,19 +734,28 @@
 
   /** 在 host 内创建全部工具按钮（抠图/白底/压缩/编辑）。重复调用安全（已有则跳过）。 */
   function addToolButtons(host, nodeEl, beforeEl) {
-    if (!host || host.querySelector('.iwb-cutout-btn')) return
+    if (!host) return
     const nodeId = nodeEl.getAttribute('data-node-id')
-    // React 重建节点时旧 DOM 引用失效：点击时优先取画布上仍然存活的最新节点，
-    // 避免读取到已被替换掉的旧图（修复“编辑器打开的是上一次的图”）
-    const liveNode = () => (nodeEl && nodeEl.isConnected)
-      ? nodeEl
-      : (document.querySelector('.iwb-node[data-node-id="' + nodeId + '"]') || nodeEl)
+    const existing = host.querySelector('.iwb-cutout-btn')
+    if (existing) {
+      // 气泡栏可能被应用复用：若按钮绑定的不是当前节点，必须移除后重新注入
+      if (existing.dataset.nodeId === nodeId) return
+      host.querySelectorAll('.iwb-cutout-btn, .iwb-whitebg-btn, .iwb-compress-btn, .iwb-editor-btn-icon').forEach(b => b.remove())
+    }
+    // 点击时优先使用“当前选中的节点”，避免复用气泡栏时绑定到上一个节点
+    const liveNode = () => {
+      const sel = document.querySelector('.iwb-node.iwb-node-selected[data-node-id]')
+      if (sel) return sel
+      const byId = nodeId ? document.querySelector('.iwb-node[data-node-id="' + nodeId + '"]') : null
+      return byId || nodeEl
+    }
     const make = (cls, content, color, tip, run) => {
       const b = document.createElement('button')
       b.className = 'iwb-node-del ' + cls
       if (typeof content === 'string' && content.indexOf('<svg') === 0) b.innerHTML = content
       else b.textContent = content
       b.style.color = color
+      b.dataset.nodeId = nodeId || ''
       bindTip(b, tip)
       b.addEventListener('pointerdown', (e) => e.stopPropagation())
       b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); run(liveNode()) })
@@ -795,7 +817,6 @@
 
   function injectFloatbarButtons() {
     document.querySelectorAll('.iwb-node-floatbar').forEach((bar) => {
-      if (bar.querySelector('.iwb-cutout-btn')) return
       const nodeEl = findFloatbarNode(bar)
       if (!nodeEl) return
       const danger = bar.querySelector('.iwb-node-floatbar-danger, [title="删除节点"]')
