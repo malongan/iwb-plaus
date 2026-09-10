@@ -826,14 +826,18 @@
       else if (isEmptyRefNode(nodeEl)) addBlankToolButton(toolbarEl, nodeEl, null)
       toolbarNodeId = id
     }
+    // 该节点没有可用工具（如提示词节点）：隐藏，避免留下一个空白小气泡
+    if (!toolbarEl.childElementCount) { toolbarEl.style.display = 'none'; return }
     const r = bar.getBoundingClientRect()
     if (!r.width && !r.height) { hideToolbar(); return }
+    const h = toolbarEl.offsetHeight || 28
+    const cx = r.left + r.width / 2
+    let top = r.top - h - 6
+    if (top < 8) top = r.bottom + 6
+    toolbarEl.style.transform = 'translateX(-50%)'
+    toolbarEl.style.left = Math.round(cx) + 'px'
+    toolbarEl.style.top = Math.round(top) + 'px'
     toolbarEl.style.display = 'flex'
-    toolbarEl.style.top = Math.round(r.top) + 'px'
-    let left = r.right + 6
-    const w = toolbarEl.offsetWidth || 0
-    if (w && left + w > window.innerWidth - 8) left = Math.max(8, r.left - w - 6)
-    toolbarEl.style.left = Math.round(left) + 'px'
   }
 
   // ============ 初始化 ============
