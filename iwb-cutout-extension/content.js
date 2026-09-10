@@ -832,14 +832,44 @@
 
   // React 更新节点时可能在同一帧内产生大量 mutation；合并扫描，避免重复遍历整棵树。
   let injectFrame = 0
+  // 节点拖动期间暂停注入：拖动时应用每帧重绘气泡栏，扩展若持续插入按钮会干扰
+  // 应用的拖拽渲染（表现为节点不跟随鼠标、松手后才跳动）。
+  let nodeDragActive = false
+  function isNodeDragging() {
+    if (nodeDragActive) return true
+    try {
+      if (document.documentElement && document.documentElement.classList.contains('iwb-dragging')) return true
+      if (document.querySelector('.iwb-node-dragging')) return true
+    } catch (e) { /* ignore */ }
+    return false
+  }
   function scheduleButtonInjection() {
+    if (isNodeDragging()) return
     if (injectFrame) return
     injectFrame = requestAnimationFrame(() => {
       injectFrame = 0
+      if (isNodeDragging()) return
       injectCutoutButtons()
       injectFloatbarButtons()
     })
   }
+
+  // 记录节点拖动（pointerdown 落在节点上、且不是扩展按钮），松手/取消后恢复注入
+  document.addEventListener('pointerdown', (e) => {
+    const t = e.target
+    if (!t || !t.closest) return
+    if (!t.closest('.iwb-node[data-node-id]')) return
+    if (t.closest('.iwb-cutout-btn, .iwb-whitebg-btn, .iwb-compress-btn, .iwb-editor-btn-icon, .iwb-blank-canvas-btn, .iwb-cutout-menu, .iwb-blank-menu')) return
+    nodeDragActive = true
+  }, true)
+  const endNodeDrag = () => {
+    if (!nodeDragActive) return
+    nodeDragActive = false
+    scheduleButtonInjection()
+  }
+  document.addEventListener('pointerup', endNodeDrag, true)
+  document.addEventListener('pointercancel', endNodeDrag, true)
+  window.addEventListener('blur', () => { nodeDragActive = false })
 
   const observer = new MutationObserver(scheduleButtonInjection)
 
