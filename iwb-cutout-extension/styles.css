@@ -1292,3 +1292,9 @@
 .iwb-editor-brush-preset:nth-child(5) i { width: 14px; height: 14px; }
 .iwb-editor-brush-preset:nth-child(6) i { width: 17px; height: 17px; }
 .iwb-editor-brush-preset:nth-child(7) i { width: 20px; height: 20px; }
+
+/* 去掉参数模块右侧的边线（隐藏纵向滚动条与右边框） */
+.iwb-editor-left { border-right: 0 !important; scrollbar-width: none; -ms-overflow-style: none; }
+.iwb-editor-left::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.iwb-editor-left > .iwb-editor-params { border-right: 0; }
+.iwb-editor-brush-presets::-webkit-scrollbar { width: 0; height: 0; display: none; }
