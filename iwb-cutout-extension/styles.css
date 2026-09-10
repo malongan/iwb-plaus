@@ -1279,3 +1279,16 @@
 .iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-btn { min-width: 26px; height: 24px; border-radius: 8px; font-size: 13px; }
 .iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-val { min-width: 44px; font-size: 11px; }
 .iwb-editor-left .iwb-editor-zoom .iwb-editor-zoom-fit { font-size: 11px; padding: 0 8px; }
+
+/* 笔刷快捷值：压缩横向间距，避免右栏出现横向滚动条 */
+.iwb-editor-left { overflow-x: hidden; }
+.iwb-editor-params { overflow-x: hidden; }
+.iwb-editor-brush-presets { gap: 3px; flex-wrap: wrap; max-width: 100%; justify-content: flex-start; }
+.iwb-editor-brush-preset { padding: 0 1px; min-width: 0; flex: 0 0 auto; }
+.iwb-editor-brush-preset i { width: 5px; height: 5px; }
+.iwb-editor-brush-preset:nth-child(2) i { width: 7px; height: 7px; }
+.iwb-editor-brush-preset:nth-child(3) i { width: 9px; height: 9px; }
+.iwb-editor-brush-preset:nth-child(4) i { width: 11px; height: 11px; }
+.iwb-editor-brush-preset:nth-child(5) i { width: 14px; height: 14px; }
+.iwb-editor-brush-preset:nth-child(6) i { width: 17px; height: 17px; }
+.iwb-editor-brush-preset:nth-child(7) i { width: 20px; height: 20px; }
