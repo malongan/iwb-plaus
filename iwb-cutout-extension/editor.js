@@ -387,7 +387,6 @@
      }
      const out = {}
      for (const k in local) out[k] = rotPt(local[k][0], local[k][1], cx, cy, rot)
-     out.rotate = rotPt(layer.x + layer.w / 2, layer.y - ROT_HANDLE_OFFSET, cx, cy, rot)
      return out
    }
 
@@ -399,8 +398,7 @@
      const cx = layer.x + layer.w / 2, cy = layer.y + layer.h / 2
      const lp = unrotPt(pos.x, pos.y, cx, cy, rot)
      const R = 12 / S.zoom
-     const rh = [layer.x + layer.w / 2, layer.y - ROT_HANDLE_OFFSET]
-     if (Math.hypot(lp[0] - rh[0], lp[1] - rh[1]) < R) return 'rotate'
+     if (hitRotationHandle(lp, layer)) return 'rotate'
      const points = {
        nw: [layer.x, layer.y], ne: [layer.x + layer.w, layer.y],
        sw: [layer.x, layer.y + layer.h], se: [layer.x + layer.w, layer.y + layer.h],
@@ -445,18 +443,14 @@
      ctx.fillStyle = '#fff'
      ctx.strokeStyle = '#e8a735'
      const pts = bitmapHandlePoints(layer)
-     const topMid = rotPt(layer.x + layer.w / 2, layer.y, layer.x + layer.w / 2, layer.y + layer.h / 2, rot)
-     ctx.beginPath()
-     ctx.moveTo(topMid[0], topMid[1])
-     ctx.lineTo(pts.rotate[0], pts.rotate[1])
-     ctx.stroke()
      for (const name in pts) {
+       if (name === 'rotate') continue
        ctx.beginPath()
-       if (name === 'rotate') { ctx.arc(pts[name][0], pts[name][1], hs * 1.4, 0, Math.PI * 2) }
-       else { ctx.rect(pts[name][0] - hs, pts[name][1] - hs, hs * 2, hs * 2) }
+       ctx.rect(pts[name][0] - hs, pts[name][1] - hs, hs * 2, hs * 2)
        ctx.fill(); ctx.stroke()
      }
      ctx.restore()
+     drawRotationHandles(ctx, layer, rot)
    }
 
 
@@ -667,19 +661,9 @@ function setActiveLayer(id) {
       ctx.fill()
       ctx.stroke()
     }
-    // 旋转手柄（上边中点外侧）
-    const topMid = rotPt(x + w / 2, y, cx, cy, rot)
-    const rotHandle = rotPt(x + w / 2, y - ROT_HANDLE_OFFSET, cx, cy, rot)
-    ctx.beginPath()
-    ctx.moveTo(topMid[0], topMid[1])
-    ctx.lineTo(rotHandle[0], rotHandle[1])
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(rotHandle[0], rotHandle[1], 6 / S.zoom, 0, Math.PI * 2)
-    ctx.fillStyle = '#fff'
-    ctx.fill()
-    ctx.stroke()
     ctx.restore()
+    // 四角外侧圆弧 = 旋转手柄
+    drawRotationHandles(ctx, { x, y, w, h }, rot)
     // 提示文字
     ctx.save()
     ctx.font = 'bold ' + Math.round(14 / S.zoom) + 'px sans-serif'
@@ -703,9 +687,8 @@ function setActiveLayer(id) {
     const cx = x + w / 2, cy = y + h / 2
     const lp = unrotPt(pos.x, pos.y, cx, cy, rot)
     const R = 12 / S.zoom
-    // 旋转手柄
-    const rh = [x + w / 2, y - ROT_HANDLE_OFFSET]
-    if (Math.hypot(lp[0] - rh[0], lp[1] - rh[1]) < R) return 'rotate'
+    // 四角外侧圆弧 = 旋转手柄
+    if (hitRotationHandle(lp, { x, y, w, h })) return 'rotate'
     const pts = {
       nw: [x, y], ne: [x + w, y],
       sw: [x, y + h], se: [x + w, y + h],
@@ -1334,6 +1317,69 @@ function setActiveLayer(id) {
   function unrotPt(px, py, cx, cy, deg) {
     return rotPt(px, py, cx, cy, -(deg || 0))
   }
+  /** 旋转手柄：四个角沿对角线向外偏移（局部坐标） */
+  function rotationHandlesLocal(b) {
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2
+    const d = 16 / Math.max(S.zoom, 0.0001)
+    return [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]].map(c => {
+      const dx = c[0] - cx, dy = c[1] - cy, len = Math.hypot(dx, dy) || 1
+      return [c[0] + dx / len * d, c[1] + dy / len * d]
+    })
+  }
+  /** 命中旋转手柄（传局部坐标点） */
+  function hitRotationHandle(lp, b) {
+    const pts = rotationHandlesLocal(b)
+    const R = Math.max(14 / Math.max(S.zoom, 0.0001), 9)
+    for (const pt of pts) {
+      if (Math.hypot(lp[0] - pt[0], lp[1] - pt[1]) < R) return true
+    }
+    return false
+  }
+  /** 绘制四个角外侧的圆弧旋转手柄 */
+  function drawRotationHandles(ctx, b, rot) {
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2
+    const pts = rotationHandlesLocal(b)
+    const r = Math.max(5 / Math.max(S.zoom, 0.0001), 4)
+    ctx.save()
+    ctx.strokeStyle = '#e8a735'
+    ctx.lineWidth = 2 / Math.max(S.zoom, 0.0001)
+    for (const pt of pts) {
+      const w = rotPt(pt[0], pt[1], cx, cy, rot || 0)
+      ctx.beginPath()
+      ctx.arc(w[0], w[1], r, Math.PI * 0.15, Math.PI * 1.85)
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+  const ROT_CURSOR = 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'black\' stroke-width=\'2\' stroke-linecap=\'round\'><path d=\'M21 12a9 9 0 1 1-3-6.7\'/><polyline points=\'21 3 21 9 15 9\'/></svg>") 12 12, crosshair'
+
+  /** 指针是否悬停在当前选中对象（或放置中图片）的旋转手柄上 */
+  function isOverRotationHandle(p) {
+    if (S.placingImage) {
+      const b = { x: S.placingImage.x, y: S.placingImage.y, w: S.placingImage.w, h: S.placingImage.h }
+      const lp = unrotPt(p.x, p.y, b.x + b.w / 2, b.y + b.h / 2, S.placingImage.rotation || 0)
+      return hitRotationHandle(lp, b)
+    }
+    const t = getSelectedText()
+    if (t) {
+      const b = textBounds(t)
+      const lp = unrotPt(p.x, p.y, b.x + b.w / 2, b.y + b.h / 2, t.rotation || 0)
+      return hitRotationHandle(lp, b)
+    }
+    const sh = getSelectedShape()
+    if (sh) {
+      const b = shapeBounds(sh)
+      const lp = unrotPt(p.x, p.y, b.x + b.w / 2, b.y + b.h / 2, sh.rotation || 0)
+      return hitRotationHandle(lp, b)
+    }
+    const layer = S.layers.find(l => l.id === S.selectedLayerId && l.transformable)
+    if (layer) {
+      const lp = unrotPt(p.x, p.y, layer.x + layer.w / 2, layer.y + layer.h / 2, layer.rotation || 0)
+      return hitRotationHandle(lp, layer)
+    }
+    return false
+  }
+
   function boxCorners(x, y, w, h, rot) {
     const cx = x + w / 2, cy = y + h / 2
     return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].map(pt => rotPt(pt[0], pt[1], cx, cy, rot))
@@ -2247,10 +2293,7 @@ function setActiveLayer(id) {
     const b = textBounds(t)
     const rot = t.rotation || 0
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2
-    const local = {
-      nw: [b.x, b.y], ne: [b.x + b.w, b.y], sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h],
-      rotate: [b.x + b.w / 2, b.y - ROT_HANDLE_OFFSET]
-    }
+    const local = { nw: [b.x, b.y], ne: [b.x + b.w, b.y], sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h] }
     const out = {}
     for (const k in local) out[k] = rotPt(local[k][0], local[k][1], cx, cy, rot)
     return out
@@ -2263,10 +2306,8 @@ function setActiveLayer(id) {
     const b = textBounds(t)
     const rot = t.rotation || 0
     const lp = rot ? unrotPt(pos.x, pos.y, b.x + b.w / 2, b.y + b.h / 2, rot) : [pos.x, pos.y]
-    const local = {
-      nw: [b.x, b.y], ne: [b.x + b.w, b.y], sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h],
-      rotate: [b.x + b.w / 2, b.y - ROT_HANDLE_OFFSET]
-    }
+    if (hitRotationHandle(lp, b)) return 'rotate'
+    const local = { nw: [b.x, b.y], ne: [b.x + b.w, b.y], sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h] }
     const R = 12 / S.zoom
     let best = null, bestDist = 1e9
     for (const name in local) {
@@ -2421,22 +2462,16 @@ function setActiveLayer(id) {
   function shapeHandlePoints(s) {
     const b = shapeBounds(s)
     if (s.type === 'pen') {
-      const pts = Object.fromEntries((s.pts || []).map((p, i) => ['p' + i, [p.x, p.y]]))
-      pts.rotate = [b.x + b.w / 2, b.y - ROT_HANDLE_OFFSET]
-      return pts
+      return Object.fromEntries((s.pts || []).map((p, i) => ['p' + i, [p.x, p.y]]))
     }
     if (s.type === 'arrow') {
-      return {
-        start: [s.x1, s.y1], end: [s.x2, s.y2],
-        rotate: [(s.x1 + s.x2) / 2, Math.min(s.y1, s.y2) - ROT_HANDLE_OFFSET]
-      }
+      return { start: [s.x1, s.y1], end: [s.x2, s.y2] }
     }
     return {
       nw: [b.x, b.y], ne: [b.x + b.w, b.y],
       sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h],
       n: [b.x + b.w / 2, b.y], s: [b.x + b.w / 2, b.y + b.h],
-      e: [b.x + b.w, b.y + b.h / 2], w: [b.x, b.y + b.h / 2],
-      rotate: [b.x + b.w / 2, b.y - ROT_HANDLE_OFFSET]
+      e: [b.x + b.w, b.y + b.h / 2], w: [b.x, b.y + b.h / 2]
     }
   }
 
@@ -2459,6 +2494,7 @@ function setActiveLayer(id) {
     const rot = s.rotation || 0
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2
     const lp = rot ? unrotPt(pos.x, pos.y, cx, cy, rot) : [pos.x, pos.y]
+    if (hitRotationHandle(lp, b)) return 'rotate'
     const pts = shapeHandlePoints(s)
     const offset = 8 / S.zoom
     const R = Math.max(16 / S.zoom, 10)
@@ -2564,24 +2600,14 @@ function setActiveLayer(id) {
     octx.fillStyle = '#ffffff'
     octx.strokeStyle = '#e8a735'
     const pts = shapeHandleWorld(s)
-    if (pts.rotate) {
-      const topLocal = s.type === 'arrow'
-        ? [(s.x1 + s.x2) / 2, Math.min(s.y1, s.y2)]
-        : [b.x + b.w / 2, b.y]
-      const tm = rotPt(topLocal[0], topLocal[1], cx, cy, rot)
-      octx.beginPath()
-      octx.moveTo(tm[0], tm[1])
-      octx.lineTo(pts.rotate[0], pts.rotate[1])
-      octx.stroke()
-    }
     for (const name in pts) {
       octx.beginPath()
-      if (name === 'rotate') octx.arc(pts[name][0], pts[name][1], hs * 0.8, 0, Math.PI * 2)
-      else octx.rect(pts[name][0] - hs, pts[name][1] - hs, hs * 2, hs * 2)
+      octx.rect(pts[name][0] - hs, pts[name][1] - hs, hs * 2, hs * 2)
       octx.fill()
       octx.stroke()
     }
     octx.restore()
+    drawRotationHandles(octx, b, rot)
   }
 
 
@@ -3094,7 +3120,7 @@ function setActiveLayer(id) {
     if (S.placingImage) {
       const pos = getPos(e)
       const h = hitPlacementHandle(pos)
-      if (h) S.drawCanvasCursor(CROP_CURSORS[h] || 'move')
+      if (h) S.drawCanvasCursor(h === 'rotate' ? ROT_CURSOR : (CROP_CURSORS[h] || 'move'))
       else S.drawCanvasCursor(insidePlacementRect(pos) ? 'move' : 'default')
       return
     }
@@ -3832,6 +3858,7 @@ function setActiveLayer(id) {
     if (S.panning || S.spaceDown) return
     if (S.isDrawing || S.textDrag || S.shapeDrag) return
     const p = getPos(e)
+    if (isOverRotationHandle(p)) { S.drawCanvasCursor(ROT_CURSOR); return }
     if (S.tool === 'select') {
       const th = hitTextHandle(p)
       if (th) { S.drawCanvasCursor((th === 'nw' || th === 'se') ? 'nwse-resize' : 'nesw-resize'); return }
