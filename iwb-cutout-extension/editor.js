@@ -397,7 +397,7 @@
 
 
    function hitBitmapHandle(pos) {
-     const layer = S.layers.find(l => l.id === S.selectedLayerId && l.transformable)
+     const layer = S.layers.find(l => l.id === S.selectedLayerId && (l.transformable || isDrawableLayer(l)))
      if (!layer || layer.visible === false) return null
      const drawable = isDrawableLayer(layer)
      const box = layerFrame(layer)
@@ -502,7 +502,7 @@
      if (!(box.w > 0 && box.h > 0)) return
      const ctx = S.overlayCtx
      const rot = layer.rotation || 0
-     const hs = 5.5 / S.zoom
+     const hs = 7 / S.zoom
      ctx.save()
      ctx.strokeStyle = '#e8a735'
      ctx.lineWidth = 1.5 / S.zoom
@@ -752,7 +752,7 @@ function setActiveLayer(id) {
     ctx.stroke()
     ctx.setLineDash([])
     // 8 个缩放手柄（旋转后位置）
-    const hs = 6.5 / S.zoom
+    const hs = 8 / S.zoom
     ctx.fillStyle = '#fff'
     ctx.strokeStyle = '#4488ff'
     ctx.lineWidth = 1.5 / S.zoom
@@ -1428,7 +1428,7 @@ function setActiveLayer(id) {
   /** 旋转手柄：四个角沿对角线向外偏移（局部坐标） */
   function rotationHandlesLocal(b) {
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2
-    const d = 16 / Math.max(S.zoom, 0.0001)
+    const d = 26 / Math.max(S.zoom, 0.0001)
     return [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]].map(c => {
       const dx = c[0] - cx, dy = c[1] - cy, len = Math.hypot(dx, dy) || 1
       return [c[0] + dx / len * d, c[1] + dy / len * d]
@@ -1437,7 +1437,7 @@ function setActiveLayer(id) {
   /** 命中旋转手柄（传局部坐标点） */
   function hitRotationHandle(lp, b) {
     const pts = rotationHandlesLocal(b)
-    const R = Math.max(16 / Math.max(S.zoom, 0.0001), 10)
+    const R = Math.max(13 / Math.max(S.zoom, 0.0001), 9)
     for (const pt of pts) {
       if (Math.hypot(lp[0] - pt[0], lp[1] - pt[1]) < R) return true
     }
@@ -1447,7 +1447,7 @@ function setActiveLayer(id) {
   function drawRotationHandles(ctx, b, rot) {
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2
     const pts = rotationHandlesLocal(b)
-    const r = Math.max(6.5 / Math.max(S.zoom, 0.0001), 5)
+    const r = Math.max(8 / Math.max(S.zoom, 0.0001), 6)
     ctx.save()
     ctx.strokeStyle = '#e8a735'
     ctx.lineWidth = 2 / Math.max(S.zoom, 0.0001)
@@ -2730,7 +2730,7 @@ function setActiveLayer(id) {
     octx.closePath()
     octx.stroke()
     octx.setLineDash([])
-    const hs = 7 / S.zoom
+    const hs = 8.5 / S.zoom
     octx.fillStyle = '#ffffff'
     octx.strokeStyle = '#e8a735'
     const pts = shapeHandleWorld(s)
@@ -2768,7 +2768,7 @@ function setActiveLayer(id) {
       drawPlacementPreview()
       return
     }
-    const bitmapSelection = S.layers.find(l => l.id === S.selectedLayerId && l.transformable)
+    const bitmapSelection = S.layers.find(l => l.id === S.selectedLayerId && (l.transformable || isDrawableLayer(l)))
      if (bitmapSelection) drawBitmapSelection(bitmapSelection)
      const sel = getSelectedText()
     if (sel) {
@@ -2786,7 +2786,7 @@ function setActiveLayer(id) {
       octx.closePath()
       octx.stroke()
       octx.setLineDash([])
-      const hs = 5.5 / S.zoom
+      const hs = 7 / S.zoom
       octx.fillStyle = '#ffffff'
       octx.strokeStyle = '#e8a735'
       const pts = textHandlePoints(sel)
