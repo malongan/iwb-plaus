@@ -1327,3 +1327,12 @@
 }
 .iwb-editor-layer-panel .iwb-layer-lock svg,
 .iwb-editor-layer-panel .iwb-layer-del svg { width: 16px; height: 16px; }
+
+
+/* 图层按钮图标统一 14px */
+.iwb-editor-layer-panel .iwb-layer-vis svg,
+.iwb-editor-layer-panel .iwb-layer-lock svg,
+.iwb-editor-layer-panel .iwb-layer-del svg { width: 14px; height: 14px; }
+.iwb-editor-layer-panel .iwb-layer-vis,
+.iwb-editor-layer-panel .iwb-layer-lock,
+.iwb-editor-layer-panel .iwb-layer-del { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
