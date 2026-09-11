@@ -394,16 +394,19 @@
    function hitBitmapHandle(pos) {
      const layer = S.layers.find(l => l.id === S.selectedLayerId && l.transformable)
      if (!layer || layer.visible === false) return null
+     const drawable = isDrawableLayer(layer)
+     const box = layerFrame(layer)
+     if (!(box.w > 0 && box.h > 0)) return null
      const rot = layer.rotation || 0
-     const cx = layer.x + layer.w / 2, cy = layer.y + layer.h / 2
+     const cx = box.x + box.w / 2, cy = box.y + box.h / 2
      const lp = unrotPt(pos.x, pos.y, cx, cy, rot)
      const R = 12 / S.zoom
-     if (hitRotationHandle(lp, layer)) return 'rotate'
+     if (!drawable && hitRotationHandle(lp, box)) return 'rotate'
      const points = {
-       nw: [layer.x, layer.y], ne: [layer.x + layer.w, layer.y],
-       sw: [layer.x, layer.y + layer.h], se: [layer.x + layer.w, layer.y + layer.h],
-       n: [layer.x + layer.w / 2, layer.y], s: [layer.x + layer.w / 2, layer.y + layer.h],
-       e: [layer.x + layer.w, layer.y + layer.h / 2], w: [layer.x, layer.y + layer.h / 2]
+       nw: [box.x, box.y], ne: [box.x + box.w, box.y],
+       sw: [box.x, box.y + box.h], se: [box.x + box.w, box.y + box.h],
+       n: [box.x + box.w / 2, box.y], s: [box.x + box.w / 2, box.y + box.h],
+       e: [box.x + box.w, box.y + box.h / 2], w: [box.x, box.y + box.h / 2]
      }
      let hit = null, best = Infinity
      for (const name in points) {
@@ -413,6 +416,43 @@
      return hit
    }
 
+
+   /** 绘制类图层（画笔标注 / 空白图层）：控制框应只包住非透明内容 */
+   function isDrawableLayer(layer) {
+     return !!layer && (layer.id === 'draw' || layer.selectable === true)
+   }
+   /** 内容包围盒（非透明像素范围），带缓存；step=2 降低扫描开销 */
+   function layerBounds(layer) {
+     if (!layer || !layer.ctx || !layer.canvas) return null
+     if (layer._bounds !== undefined) return layer._bounds
+     let b = null
+     try {
+       const w = layer.canvas.width, h = layer.canvas.height
+       const data = layer.ctx.getImageData(0, 0, w, h).data
+       let minX = w, minY = h, maxX = -1, maxY = -1
+       for (let y = 0; y < h; y += 2) {
+         for (let x = 0; x < w; x += 2) {
+           if (data[(y * w + x) * 4 + 3] > 8) {
+             if (x < minX) minX = x
+             if (x > maxX) maxX = x
+             if (y < minY) minY = y
+             if (y > maxY) maxY = y
+           }
+         }
+       }
+       if (maxX >= 0) b = { x: minX, y: minY, w: maxX - minX + 2, h: maxY - minY + 2 }
+     } catch (e) { b = null }
+     layer._bounds = b
+     return b
+   }
+   /** 控制框使用的范围：绘制类图层用内容盒，其余用图层矩形 */
+   function layerFrame(layer) {
+     if (isDrawableLayer(layer)) {
+       const b = layerBounds(layer)
+       if (b) return b
+     }
+     return { x: layer.x, y: layer.y, w: layer.w, h: layer.h }
+   }
 
    function hitBitmapLayer(pos) {
      const layers = [...S.layers].sort((a, b) => (a.z || 0) - (b.z || 0))
@@ -439,7 +479,11 @@
    }
 
    function drawBitmapSelection(layer) {
-     if (!layer || !layer.transformable) return
+     if (!layer) return
+     const drawable = isDrawableLayer(layer)
+     if (!layer.transformable && !drawable) return
+     const box = layerFrame(layer)
+     if (!(box.w > 0 && box.h > 0)) return
      const ctx = S.overlayCtx
      const rot = layer.rotation || 0
      const hs = 4 / S.zoom
@@ -447,7 +491,7 @@
      ctx.strokeStyle = '#e8a735'
      ctx.lineWidth = 1.5 / S.zoom
      ctx.setLineDash([6 / S.zoom, 3 / S.zoom])
-     const corners = boxCorners(layer.x, layer.y, layer.w, layer.h, rot)
+     const corners = boxCorners(box.x, box.y, box.w, box.h, rot)
      ctx.beginPath()
      ctx.moveTo(corners[0][0], corners[0][1])
      for (let i = 1; i < corners.length; i++) ctx.lineTo(corners[i][0], corners[i][1])
@@ -456,15 +500,29 @@
      ctx.setLineDash([])
      ctx.fillStyle = '#fff'
      ctx.strokeStyle = '#e8a735'
-     const pts = bitmapHandlePoints(layer)
+     const pts = frameHandlePoints(box, rot)
      for (const name in pts) {
-       if (name === 'rotate') continue
        ctx.beginPath()
        ctx.rect(pts[name][0] - hs, pts[name][1] - hs, hs * 2, hs * 2)
        ctx.fill(); ctx.stroke()
      }
      ctx.restore()
-     drawRotationHandles(ctx, layer, rot)
+     // 绘制类全画布透明层不做旋转（无意义且易错位）
+     if (!drawable) drawRotationHandles(ctx, box, rot)
+   }
+
+   /** 任意矩形的 8 个控制点（含旋转）*/
+   function frameHandlePoints(box, rot) {
+     const cx = box.x + box.w / 2, cy = box.y + box.h / 2
+     const local = {
+       nw: [box.x, box.y], ne: [box.x + box.w, box.y],
+       sw: [box.x, box.y + box.h], se: [box.x + box.w, box.y + box.h],
+       n: [box.x + box.w / 2, box.y], s: [box.x + box.w / 2, box.y + box.h],
+       e: [box.x + box.w, box.y + box.h / 2], w: [box.x, box.y + box.h / 2]
+     }
+     const out = {}
+     for (const k in local) out[k] = rotPt(local[k][0], local[k][1], cx, cy, rot || 0)
+     return out
    }
 
 
@@ -477,9 +535,13 @@
         layer.sourceCanvas.height = S.imgH
         layer.sourceCanvas.getContext('2d').drawImage(layer.canvas, 0, 0)
       }
+      const frame = layerFrame(layer)
       S.bitmapDrag = {
        mode: handle === 'rotate' ? 'rotate' : (handle ? 'scale' : 'move'), handle, start: pos,
-       layer: { x: layer.x, y: layer.y, w: layer.w, h: layer.h, rotation: layer.rotation || 0 }, pending: snapshotState()
+       drawable: isDrawableLayer(layer),
+       layer: { x: layer.x, y: layer.y, w: layer.w, h: layer.h, rotation: layer.rotation || 0 },
+       frame: { x: frame.x, y: frame.y, w: frame.w, h: frame.h },
+       pending: snapshotState()
      }
    }
 
@@ -498,6 +560,21 @@
        let deg = (base.rotation || 0) + (a1 - a0) * 180 / Math.PI
        if (S._shiftDown) deg = Math.round(deg / 15) * 15
        layer.rotation = deg
+     } else if (drag.drawable) {
+       // 绘制类图层：以“内容框”缩放，换算回全幅图层
+       const fr = drag.frame
+       const lpos = unrotPt(pos.x, pos.y, fr.x + fr.w / 2, fr.y + fr.h / 2, base.rotation || 0)
+       let nx = fr.x, ny = fr.y, nw = fr.w, nh = fr.h
+       const min = 4
+       if (drag.handle.includes('e')) nw = Math.max(min, lpos[0] - fr.x)
+       if (drag.handle.includes('s')) nh = Math.max(min, lpos[1] - fr.y)
+       if (drag.handle.includes('w')) { nx = Math.min(lpos[0], fr.x + fr.w - min); nw = fr.x + fr.w - nx }
+       if (drag.handle.includes('n')) { ny = Math.min(lpos[1], fr.y + fr.h - min); nh = fr.y + fr.h - ny }
+       const sx = nw / Math.max(1, fr.w), sy = nh / Math.max(1, fr.h)
+       layer.w = Math.max(4, base.w * sx)
+       layer.h = Math.max(4, base.h * sy)
+       layer.x = nx - fr.x * sx
+       layer.y = ny - fr.y * sy
      } else {
        const lpos = unrotPt(pos.x, pos.y, base.x + base.w / 2, base.y + base.h / 2, base.rotation || 0)
        let x = base.x, y = base.y, w = base.w, h = base.h
@@ -1712,6 +1789,7 @@ function setActiveLayer(id) {
 
   /** 结束一笔：按透明度一次性合成进活跃图层（画笔=正常合成，橡皮=destination-out） */
   function endStroke() {
+    for (const l of S.layers) l._bounds = undefined
     const ctx = getActiveCtx()
     if (!ctx) return
     ctx.save()
