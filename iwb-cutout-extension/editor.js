@@ -1582,6 +1582,7 @@ function setActiveLayer(id) {
   /** 恢复到指定状态 */
   function restoreState(state) {
     purgeVectorCanvases()
+    for (const l of S.layers) l._bounds = undefined
     if (state.bitmaps) {
       for (let i = 0; i < state.bitmaps.length; i++) {
         const bm = state.bitmaps[i]
