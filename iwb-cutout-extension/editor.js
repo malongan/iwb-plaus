@@ -866,12 +866,21 @@ function setActiveLayer(id) {
       ctx.save()
       ctx.textBaseline = 'top'
       ctx.globalAlpha = obj.opacity != null ? obj.opacity : 1
+      const rot = obj.rotation || 0
+      if (rot) {
+        const b = textBounds(obj)
+        const cx = b.x + b.w / 2, cy = b.y + b.h / 2
+        ctx.translate(cx, cy)
+        ctx.rotate(rot * Math.PI / 180)
+        ctx.translate(-cx, -cy)
+      }
       ctx.font = TEXT_FONT(obj.fontSize)
       ctx.fillStyle = obj.color
       ctx.fillText(obj.text, obj.x, obj.y)
       ctx.restore()
     }
   }
+
 
   /** 切换图层可见性 */
   function toggleLayerVisibility(id) {
@@ -1667,6 +1676,14 @@ function setActiveLayer(id) {
   function drawShape(ctx, s) {
     ctx.save()
     ctx.globalAlpha = s.opacity != null ? s.opacity : 1
+    const rot = s.rotation || 0
+    if (rot) {
+      const b = shapeBounds(s)
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2
+      ctx.translate(cx, cy)
+      ctx.rotate(rot * Math.PI / 180)
+      ctx.translate(-cx, -cy)
+    }
     ctx.strokeStyle = s.color
     ctx.lineWidth = s.lw
     ctx.lineCap = 'round'
@@ -1702,6 +1719,7 @@ function setActiveLayer(id) {
     }
     ctx.restore()
   }
+
 
   /** 当前工具笔刷半径（图片像素） */
   function getToolBrushRadius() {
@@ -2211,37 +2229,54 @@ function setActiveLayer(id) {
 
   function hitTextLayer(pos) {
     for (let i = S.textLayers.length - 1; i >= 0; i--) {
-      if (S.textLayers[i].visible === false) continue
-      const b = textBounds(S.textLayers[i])
-      if (pos.x >= b.x - 2 && pos.x <= b.x + b.w + 2 &&
-          pos.y >= b.y - 2 && pos.y <= b.y + b.h + 2) {
-        return S.textLayers[i]
+      const t = S.textLayers[i]
+      if (t.visible === false) continue
+      const b = textBounds(t)
+      const rot = t.rotation || 0
+      const lp = rot ? unrotPt(pos.x, pos.y, b.x + b.w / 2, b.y + b.h / 2, rot) : [pos.x, pos.y]
+      if (lp[0] >= b.x - 2 && lp[0] <= b.x + b.w + 2 &&
+          lp[1] >= b.y - 2 && lp[1] <= b.y + b.h + 2) {
+        return t
       }
     }
     return null
   }
 
+
   function textHandlePoints(t) {
     const b = textBounds(t)
-    return {
-      nw: [b.x, b.y], ne: [b.x + b.w, b.y],
-      sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h]
+    const rot = t.rotation || 0
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2
+    const local = {
+      nw: [b.x, b.y], ne: [b.x + b.w, b.y], sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h],
+      rotate: [b.x + b.w / 2, b.y - ROT_HANDLE_OFFSET]
     }
+    const out = {}
+    for (const k in local) out[k] = rotPt(local[k][0], local[k][1], cx, cy, rot)
+    return out
   }
+
 
   function hitTextHandle(pos) {
     const t = getSelectedText()
     if (!t) return null
-    const pts = textHandlePoints(t)
+    const b = textBounds(t)
+    const rot = t.rotation || 0
+    const lp = rot ? unrotPt(pos.x, pos.y, b.x + b.w / 2, b.y + b.h / 2, rot) : [pos.x, pos.y]
+    const local = {
+      nw: [b.x, b.y], ne: [b.x + b.w, b.y], sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h],
+      rotate: [b.x + b.w / 2, b.y - ROT_HANDLE_OFFSET]
+    }
     const R = 12 / S.zoom
     let best = null, bestDist = 1e9
-    for (const name in pts) {
-      const dx = pos.x - pts[name][0], dy = pos.y - pts[name][1]
+    for (const name in local) {
+      const dx = lp[0] - local[name][0], dy = lp[1] - local[name][1]
       const d = dx * dx + dy * dy
       if (d < R * R && d < bestDist) { bestDist = d; best = name }
     }
     return best
   }
+
 
   // ============ 形状图层 ============
 
@@ -2264,6 +2299,11 @@ function setActiveLayer(id) {
 
   function hitShapeObj(pos, s, includeInterior) {
     if (s.visible === false) return false
+    if (s.rotation) {
+      const b = shapeBounds(s)
+      const lp = unrotPt(pos.x, pos.y, b.x + b.w / 2, b.y + b.h / 2, s.rotation)
+      pos = { x: lp[0], y: lp[1] }
+    }
     if (s.type === 'pen') { const pts = s.pts || []; for (let i = 1; i < pts.length; i++) if (distToSeg(pos.x, pos.y, pts[i-1].x, pts[i-1].y, pts[i].x, pts[i].y) <= Math.max(8 / S.zoom, s.lw)) return true; if (s.closed && pts.length > 2 && distToSeg(pos.x, pos.y, pts[pts.length-1].x, pts[pts.length-1].y, pts[0].x, pts[0].y) <= Math.max(8 / S.zoom, s.lw)) return true; if (!includeInterior) return false; const b = shapeBounds(s); return pos.x >= b.x && pos.x <= b.x + b.w && pos.y >= b.y && pos.y <= b.y + b.h }
     if (s.type === 'circle') {
       const b = shapeBounds(s)
@@ -2319,8 +2359,10 @@ function setActiveLayer(id) {
       if (obj.visible === false) continue
       if (kind === 'text') {
         const b = textBounds(obj)
-        if (pos.x >= b.x - 2 && pos.x <= b.x + b.w + 2 &&
-            pos.y >= b.y - 2 && pos.y <= b.y + b.h + 2) {
+        const rot = obj.rotation || 0
+        const lp = rot ? unrotPt(pos.x, pos.y, b.x + b.w / 2, b.y + b.h / 2, rot) : [pos.x, pos.y]
+        if (lp[0] >= b.x - 2 && lp[0] <= b.x + b.w + 2 &&
+            lp[1] >= b.y - 2 && lp[1] <= b.y + b.h + 2) {
           return { kind, obj }
         }
       } else if (hitShapeObj(pos, obj, true)) {
@@ -2377,31 +2419,46 @@ function setActiveLayer(id) {
 
 
   function shapeHandlePoints(s) {
-    if (s.type === 'circle') {
-      const b = shapeBounds(s)
+    const b = shapeBounds(s)
+    if (s.type === 'pen') {
+      const pts = Object.fromEntries((s.pts || []).map((p, i) => ['p' + i, [p.x, p.y]]))
+      pts.rotate = [b.x + b.w / 2, b.y - ROT_HANDLE_OFFSET]
+      return pts
+    }
+    if (s.type === 'arrow') {
       return {
-        nw: [b.x, b.y], ne: [b.x + b.w, b.y],
-        sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h],
-        n: [b.x + b.w / 2, b.y], s: [b.x + b.w / 2, b.y + b.h],
-        e: [b.x + b.w, b.y + b.h / 2], w: [b.x, b.y + b.h / 2]
+        start: [s.x1, s.y1], end: [s.x2, s.y2],
+        rotate: [(s.x1 + s.x2) / 2, Math.min(s.y1, s.y2) - ROT_HANDLE_OFFSET]
       }
     }
-    if (s.type === 'rect') {
-      const b = shapeBounds(s)
-      return {
-        nw: [b.x, b.y], ne: [b.x + b.w, b.y],
-        sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h],
-        n: [b.x + b.w / 2, b.y], s: [b.x + b.w / 2, b.y + b.h],
-        e: [b.x + b.w, b.y + b.h / 2], w: [b.x, b.y + b.h / 2]
-      }
+    return {
+      nw: [b.x, b.y], ne: [b.x + b.w, b.y],
+      sw: [b.x, b.y + b.h], se: [b.x + b.w, b.y + b.h],
+      n: [b.x + b.w / 2, b.y], s: [b.x + b.w / 2, b.y + b.h],
+      e: [b.x + b.w, b.y + b.h / 2], w: [b.x, b.y + b.h / 2],
+      rotate: [b.x + b.w / 2, b.y - ROT_HANDLE_OFFSET]
     }
-    if (s.type === 'pen') return Object.fromEntries((s.pts || []).map((p, i) => ['p' + i, [p.x, p.y]]))
-    return { start: [s.x1, s.y1], end: [s.x2, s.y2] }
   }
+
+  /** 形状控制点的世界坐标（应用旋转后） */
+  function shapeHandleWorld(s) {
+    const b = shapeBounds(s)
+    const rot = s.rotation || 0
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2
+    const local = shapeHandlePoints(s)
+    const out = {}
+    for (const k in local) out[k] = rotPt(local[k][0], local[k][1], cx, cy, rot)
+    return out
+  }
+
 
   function hitShapeHandle(pos) {
     const s = getSelectedShape()
     if (!s) return null
+    const b = shapeBounds(s)
+    const rot = s.rotation || 0
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2
+    const lp = rot ? unrotPt(pos.x, pos.y, cx, cy, rot) : [pos.x, pos.y]
     const pts = shapeHandlePoints(s)
     const offset = 8 / S.zoom
     const R = Math.max(16 / S.zoom, 10)
@@ -2409,14 +2466,32 @@ function setActiveLayer(id) {
     for (const name in pts) {
       const px = pts[name][0] + (name.includes('w') ? -offset : name.includes('e') ? offset : 0)
       const py = pts[name][1] + (name.includes('n') ? -offset : name.includes('s') ? offset : 0)
-      const dx = pos.x - px, dy = pos.y - py
+      const dx = lp[0] - px, dy = lp[1] - py
       const d = dx * dx + dy * dy
       if (d < R * R && d < bestDist) { bestDist = d; best = name }
     }
     return best
   }
 
+
   function applyShapeHandle(s, handle, pos) {
+    const b0 = shapeBounds(s)
+    const rot0 = s.rotation || 0
+    const c0x = b0.x + b0.w / 2, c0y = b0.y + b0.h / 2
+    if (handle === 'rotate') {
+      const st = S.shapeDrag && S.shapeDrag.start
+      const baseRot = (S.shapeDrag && S.shapeDrag.shape && (S.shapeDrag.shape.rotation || 0)) || 0
+      if (st) {
+        const a0 = Math.atan2(st.y - c0y, st.x - c0x)
+        const a1 = Math.atan2(pos.y - c0y, pos.x - c0x)
+        let deg = baseRot + (a1 - a0) * 180 / Math.PI
+        if (S._shiftDown) deg = Math.round(deg / 15) * 15
+        s.rotation = deg
+      }
+      return
+    }
+    const lp = rot0 ? unrotPt(pos.x, pos.y, c0x, c0y, rot0) : [pos.x, pos.y]
+    pos = { x: lp[0], y: lp[1] }
     if (s.type === 'pen' && handle && handle[0] === 'p') {
       const i = parseInt(handle.slice(1), 10)
       if (s.pts && s.pts[i]) { s.pts[i].x = clamp(pos.x, 0, S.imgW); s.pts[i].y = clamp(pos.y, 0, S.imgH) }
@@ -2437,6 +2512,7 @@ function setActiveLayer(id) {
     if (handle.includes('n')) y1 = Math.min(y2 - 2, adjusted.y)
     s.x1 = x1; s.y1 = y1; s.x2 = x2; s.y2 = y2
   }
+
 
   function drawPenPathPreview() {
     const path = S.penPath
@@ -2471,24 +2547,43 @@ function setActiveLayer(id) {
   function drawShapeSelection(s) {
     const octx = S.overlayCtx
     const b = shapeBounds(s)
-    const offset = 8 / S.zoom
+    const rot = s.rotation || 0
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2
     octx.save()
     octx.strokeStyle = '#e8a735'
     octx.lineWidth = 1.5 / S.zoom
     octx.setLineDash([6 / S.zoom, 3 / S.zoom])
-    octx.strokeRect(b.x - offset, b.y - offset, b.w + offset * 2, b.h + offset * 2)
+    const corners = boxCorners(b.x, b.y, b.w, b.h, rot)
+    octx.beginPath()
+    octx.moveTo(corners[0][0], corners[0][1])
+    for (let i = 1; i < corners.length; i++) octx.lineTo(corners[i][0], corners[i][1])
+    octx.closePath()
+    octx.stroke()
     octx.setLineDash([])
     const hs = 6 / S.zoom
     octx.fillStyle = '#ffffff'
     octx.strokeStyle = '#e8a735'
-    const pts = shapeHandlePoints(s)
+    const pts = shapeHandleWorld(s)
+    if (pts.rotate) {
+      const topLocal = s.type === 'arrow'
+        ? [(s.x1 + s.x2) / 2, Math.min(s.y1, s.y2)]
+        : [b.x + b.w / 2, b.y]
+      const tm = rotPt(topLocal[0], topLocal[1], cx, cy, rot)
+      octx.beginPath()
+      octx.moveTo(tm[0], tm[1])
+      octx.lineTo(pts.rotate[0], pts.rotate[1])
+      octx.stroke()
+    }
     for (const name in pts) {
-      const px = pts[name][0] + (name.includes('w') ? -offset : name.includes('e') ? offset : 0)
-      const py = pts[name][1] + (name.includes('n') ? -offset : name.includes('s') ? offset : 0)
-      octx.beginPath(); octx.rect(px - hs, py - hs, hs * 2, hs * 2); octx.fill(); octx.stroke()
+      octx.beginPath()
+      if (name === 'rotate') octx.arc(pts[name][0], pts[name][1], hs * 0.8, 0, Math.PI * 2)
+      else octx.rect(pts[name][0] - hs, pts[name][1] - hs, hs * 2, hs * 2)
+      octx.fill()
+      octx.stroke()
     }
     octx.restore()
   }
+
 
   function deleteSelectedShape() {
     if (!S.selectedShapeId) return
@@ -2518,12 +2613,18 @@ function setActiveLayer(id) {
      const sel = getSelectedText()
     if (sel) {
       const b = textBounds(sel)
+      const rot = sel.rotation || 0
       const octx = S.overlayCtx
       octx.save()
       octx.strokeStyle = '#e8a735'
       octx.lineWidth = 1.5 / S.zoom
       octx.setLineDash([6 / S.zoom, 3 / S.zoom])
-      octx.strokeRect(b.x - 2 / S.zoom, b.y - 2 / S.zoom, b.w + 4 / S.zoom, b.h + 4 / S.zoom)
+      const corners = boxCorners(b.x - 2 / S.zoom, b.y - 2 / S.zoom, b.w + 4 / S.zoom, b.h + 4 / S.zoom, rot)
+      octx.beginPath()
+      octx.moveTo(corners[0][0], corners[0][1])
+      for (let i = 1; i < corners.length; i++) octx.lineTo(corners[i][0], corners[i][1])
+      octx.closePath()
+      octx.stroke()
       octx.setLineDash([])
       const hs = 4 / S.zoom
       octx.fillStyle = '#ffffff'
@@ -2575,43 +2676,53 @@ function setActiveLayer(id) {
   }
   function hitPenPoint(pos, shape, r) {
     const pts = shape.pts || []
+    const b = shapeBounds(shape)
+    const lp = shape.rotation ? unrotPt(pos.x, pos.y, b.x + b.w / 2, b.y + b.h / 2, shape.rotation) : [pos.x, pos.y]
     for (let i = 0; i < pts.length; i++) {
-      if (Math.hypot(pos.x - pts[i].x, pos.y - pts[i].y) <= r) return i
+      if (Math.hypot(lp[0] - pts[i].x, lp[1] - pts[i].y) <= r) return i
     }
     return -1
   }
+
   function hitPenEdgeInsert(pos, shape) {
     const pts = shape.pts || []
+    const b = shapeBounds(shape)
+    const lp = shape.rotation ? unrotPt(pos.x, pos.y, b.x + b.w / 2, b.y + b.h / 2, shape.rotation) : [pos.x, pos.y]
     const r = Math.max(12 / S.zoom, 6)
     for (let i = 0; i < pts.length - 1; i++) {
-      if (distToSeg(pos.x, pos.y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= r) return i
+      if (distToSeg(lp[0], lp[1], pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= r) return i
     }
     if (shape.closed && pts.length >= 3) {
-      if (distToSeg(pos.x, pos.y, pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y) <= r) return pts.length - 1
+      if (distToSeg(lp[0], lp[1], pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y) <= r) return pts.length - 1
     }
     return -1
   }
+
   function drawPenEditOverlay(shape) {
     const ctx = S.overlayCtx
     const pts = shape.pts || []
+    const b = shapeBounds(shape)
+    const rot = shape.rotation || 0
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2
+    const W = (p) => rotPt(p.x, p.y, cx, cy, rot)
     const R = Math.max(7 / S.zoom, 5)
     ctx.save()
     ctx.lineWidth = 1.5 / S.zoom
-    // 线段中点“+”插入点（仅开放线段；闭合额外补最后一段）
     const segments = []
     for (let i = 0; i < pts.length - 1; i++) segments.push([pts[i], pts[i + 1]])
     if (shape.closed && pts.length >= 3) segments.push([pts[pts.length - 1], pts[0]])
     ctx.strokeStyle = '#e8a735'
-    for (const [a, b] of segments) {
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
+    for (const [a, bb] of segments) {
+      const wa = W(a), wb = W(bb)
+      const mx = (wa[0] + wb[0]) / 2, my = (wa[1] + wb[1]) / 2
       ctx.beginPath()
       ctx.arc(mx, my, Math.max(3 / S.zoom, 2), 0, Math.PI * 2)
       ctx.stroke()
     }
-    // 节点
     for (let i = 0; i < pts.length; i++) {
+      const wp = W(pts[i])
       ctx.beginPath()
-      ctx.rect(pts[i].x - R / 2, pts[i].y - R / 2, R, R)
+      ctx.rect(wp[0] - R / 2, wp[1] - R / 2, R, R)
       ctx.fillStyle = '#ffffff'
       ctx.strokeStyle = i === S.penDragPt ? '#ff8c00' : '#e8a735'
       ctx.fill()
@@ -2619,6 +2730,7 @@ function setActiveLayer(id) {
     }
     ctx.restore()
   }
+
 
   // ============ 文字输入框 ============
   function showTextInput(x, y, layer) {
@@ -2707,17 +2819,35 @@ function setActiveLayer(id) {
     renderObjects()
   }
 
+  function beginTextRotate(pos) {
+    const t = getSelectedText()
+    if (!t || t.locked) return
+    const b = textBounds(t)
+    S.textDrag = {
+      mode: 'rotate',
+      rotation: t.rotation || 0,
+      cx: b.x + b.w / 2,
+      cy: b.y + b.h / 2,
+      startX0: pos.x,
+      startY0: pos.y,
+      pending: snapshotState()
+    }
+  }
+
   function beginTextScaleDrag(handle, pos) {
     const t = getSelectedText()
     if (!t || t.locked) return
     const b = textBounds(t)
+    const rot = t.rotation || 0
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2
     const anchors = {
-      se: { x: b.x, y: b.y },
-      ne: { x: b.x, y: b.y + b.h },
-      sw: { x: b.x + b.w, y: b.y },
-      nw: { x: b.x + b.w, y: b.y + b.h }
+      se: [b.x, b.y],
+      ne: [b.x, b.y + b.h],
+      sw: [b.x + b.w, b.y],
+      nw: [b.x + b.w, b.y + b.h]
     }
-    const anchor = anchors[handle]
+    const a = rotPt(anchors[handle][0], anchors[handle][1], cx, cy, rot)
+    const anchor = { x: a[0], y: a[1] }
     const dx = pos.x - anchor.x, dy = pos.y - anchor.y
     S.textDrag = {
       mode: 'scale',
@@ -2727,6 +2857,7 @@ function setActiveLayer(id) {
       pending: snapshotState()
     }
   }
+
 
   function beginShapeHandleDrag(handle, pos) {
     const sh = getSelectedShape()
@@ -2831,7 +2962,7 @@ function setActiveLayer(id) {
       const bitmapHandle = hitBitmapHandle(pos)
       if (bitmapHandle) { beginBitmapDrag(bitmapHandle, pos); return }
       const th = hitTextHandle(pos)
-      if (th) { beginTextScaleDrag(th, pos); return }
+      if (th) { if (th === 'rotate') beginTextRotate(pos); else beginTextScaleDrag(th, pos); return }
       const shH = hitShapeHandle(pos)
       if (shH) { beginShapeHandleDrag(shH, pos); return }
       const hit = hitAnyObject(pos)
@@ -2884,7 +3015,7 @@ function setActiveLayer(id) {
     } else if (S.tool === 'text') {
       if (commitTextInput()) return
       const handle = hitTextHandle(pos)
-      if (handle) { beginTextScaleDrag(handle, pos); return }
+      if (handle) { if (handle === 'rotate') beginTextRotate(pos); else beginTextScaleDrag(handle, pos); return }
       const hit = hitTextLayer(pos)
       if (hit) {
         S.selectedTextId = hit.id
@@ -2987,6 +3118,14 @@ function setActiveLayer(id) {
           const dy = pos0.y - S.textDrag.start.y
           t.x = clamp(S.textDrag.layer.x + dx, 0, Math.max(0, S.imgW - 4))
           t.y = clamp(S.textDrag.layer.y + dy, 0, Math.max(0, S.imgH - 4))
+        } else if (S.textDrag.mode === 'rotate') {
+          const st = S.textDrag
+          const a1 = Math.atan2(pos0.y - st.cy, pos0.x - st.cx)
+          const a0 = Math.atan2(st.startY0 - st.cy, st.startX0 - st.cx)
+          let deg = st.rotation
+          if (st.startX0 !== undefined) deg = st.rotation + (a1 - a0) * 180 / Math.PI
+          if (S._shiftDown) deg = Math.round(deg / 15) * 15
+          t.rotation = deg
         } else if (S.textDrag.mode === 'scale') {
           const dx = pos0.x - S.textDrag.anchor.x
           const dy = pos0.y - S.textDrag.anchor.y
