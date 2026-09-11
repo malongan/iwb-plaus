@@ -45,7 +45,7 @@
   const WHITE_BG_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7.9" y="7.9" width="8.2" height="8.2" rx="1" fill="currentColor" stroke="none" opacity="0.4"/></svg>`
 
   // 图片编辑器图标：图层+画笔（表示图层化编辑能力）
-  const EDITOR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>`
+  const EDITOR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`
 
   // ============ 状态 ============
   const processingNodes = new Set()
@@ -812,6 +812,9 @@
     toolbarNodeId = ''
   }
   function updateToolbar() {
+    // 图片编辑器打开时隐藏扩展工具条（编辑器为全屏层，工具条不应残留在其上）
+    const editorOverlay = document.getElementById('iwb-editor-overlay')
+    if (editorOverlay && editorOverlay.style.display && editorOverlay.style.display !== 'none') { hideToolbar(); return }
     const bar = document.querySelector('.iwb-node-floatbar')
     if (!bar) { hideToolbar(); return }
     // 优先使用“当前选中的节点”，其次按气泡位置匹配
