@@ -1319,3 +1319,11 @@
 .iwb-editor-header > .iwb-editor-export-actions { order: 1; margin-left: 0; margin-right: 4px; }
 .iwb-editor-header > .iwb-editor-tools { order: 2; flex: 1 1 auto; justify-content: center; }
 .iwb-editor-header > .iwb-editor-history { order: 3; margin-left: 0; }
+
+/* 图层面板：放大锁定 / 删除按钮的点击区域与图标 */
+.iwb-editor-layer-panel .iwb-layer-lock,
+.iwb-editor-layer-panel .iwb-layer-del {
+  width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+}
+.iwb-editor-layer-panel .iwb-layer-lock svg,
+.iwb-editor-layer-panel .iwb-layer-del svg { width: 16px; height: 16px; }

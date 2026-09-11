@@ -418,8 +418,11 @@
      const layers = [...S.layers].sort((a, b) => (a.z || 0) - (b.z || 0))
      for (let i = layers.length - 1; i >= 0; i--) {
        const layer = layers[i]
-       if (!layer.transformable || layer.visible === false) continue
-       if (pos.x >= layer.x && pos.x <= layer.x + layer.w && pos.y >= layer.y && pos.y <= layer.y + layer.h) return layer
+       if (!(layer.transformable || layer.selectable) || layer.visible === false || layer.locked) continue
+       if (!(layer.w > 0 && layer.h > 0)) continue
+       const rot = layer.rotation || 0
+       const lp = rot ? unrotPt(pos.x, pos.y, layer.x + layer.w / 2, layer.y + layer.h / 2, rot) : [pos.x, pos.y]
+       if (lp[0] >= layer.x && lp[0] <= layer.x + layer.w && lp[1] >= layer.y && lp[1] <= layer.y + layer.h) return layer
      }
      return null
    }
@@ -536,11 +539,14 @@ function setActiveLayer(id) {
       opacity: 1,
       visible: true,
        locked: false,
+      selectable: true,
+      x: 0, y: 0, w: S.imgW, h: S.imgH,
+      rotation: 0,
       z: ++S.zCounter
     }
-    redrawBitmapLayer(layer)
     saveSnapshot()
     S.layers.push(layer)
+    reorderLayerCanvas()
     setActiveLayer(id)
     updateLayerCanvasStyles()
     renderLayerPanel()
@@ -594,8 +600,10 @@ function setActiveLayer(id) {
        locked: false,
       z: S.layers.length
     }
+    redrawBitmapLayer(layer)
     saveSnapshot()
     S.layers.push(layer)
+    reorderLayerCanvas()
     setActiveLayer(id)
     updateLayerCanvasStyles()
     renderLayerPanel()
@@ -975,9 +983,9 @@ function setActiveLayer(id) {
         ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>'
         : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>'
       const lockSvg = item.locked
-        ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>'
-        : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7-2"/></svg>'
-      const delSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7-2"/></svg>'
+      const delSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
       html += `<div class="iwb-layer-item${activeClass}${visClass}" draggable="${item.id !== 'base'}" data-layer-id="${item.id}" data-layer-type="${item.type}">
         <button class="iwb-layer-vis" data-vis-id="${item.id}" data-vis-type="${item.type}" title="${item.visible ? '隐藏' : '显示'}">${visSvg}</button>
         <span class="iwb-layer-icon">${typeIconSvg}</span>
