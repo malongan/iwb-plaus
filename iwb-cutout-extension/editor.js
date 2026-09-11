@@ -400,7 +400,7 @@
      const rot = layer.rotation || 0
      const cx = box.x + box.w / 2, cy = box.y + box.h / 2
      const lp = unrotPt(pos.x, pos.y, cx, cy, rot)
-     const R = 12 / S.zoom
+     const R = 14 / S.zoom
      if (!drawable && hitRotationHandle(lp, box)) return 'rotate'
      const points = {
        nw: [box.x, box.y], ne: [box.x + box.w, box.y],
@@ -456,27 +456,37 @@
 
    function hitBitmapLayer(pos) {
      const layers = [...S.layers].sort((a, b) => (a.z || 0) - (b.z || 0))
-     for (let i = layers.length - 1; i >= 0; i--) {
-       const layer = layers[i]
-       if (!(layer.transformable || layer.selectable) || layer.visible === false || layer.locked) continue
-       if (!(layer.w > 0 && layer.h > 0)) continue
+     const hitRect = (layer) => {
+       if (!(layer.w > 0 && layer.h > 0)) return false
        const rot = layer.rotation || 0
        const lp = rot ? unrotPt(pos.x, pos.y, layer.x + layer.w / 2, layer.y + layer.h / 2, rot) : [pos.x, pos.y]
-       if (!(lp[0] >= layer.x && lp[0] <= layer.x + layer.w && lp[1] >= layer.y && lp[1] <= layer.y + layer.h)) continue
-       // 画笔/空白等绘制层按像素命中：只有点击到实际内容才选中，避免全画布层互相遮挡
-       if (layer.selectable || !layer.image) {
-         const px = Math.round(lp[0]), py = Math.round(lp[1])
-         if (px < 0 || py < 0 || px >= layer.canvas.width || py >= layer.canvas.height) continue
-         try {
-           const d = layer.ctx.getImageData(px, py, 1, 1).data
-           if (d[3] > 8) return layer
-         } catch (e) { return layer }
-         continue
-       }
-       return layer
+       return lp[0] >= layer.x && lp[0] <= layer.x + layer.w && lp[1] >= layer.y && lp[1] <= layer.y + layer.h
+     }
+     const usable = (layer) => layer && layer.visible !== false && !layer.locked
+     // 第一轮：绘制类图层按像素命中（点内容才算，避免被上层图片层拦截）
+     for (let i = layers.length - 1; i >= 0; i--) {
+       const layer = layers[i]
+       if (!usable(layer)) continue
+       if (!(layer.selectable || !layer.image)) continue
+       if (!hitRect(layer)) continue
+       const rot = layer.rotation || 0
+       const lp = rot ? unrotPt(pos.x, pos.y, layer.x + layer.w / 2, layer.y + layer.h / 2, rot) : [pos.x, pos.y]
+       const px = Math.round(lp[0]), py = Math.round(lp[1])
+       if (px < 0 || py < 0 || px >= layer.canvas.width || py >= layer.canvas.height) continue
+       try {
+         const d = layer.ctx.getImageData(px, py, 1, 1).data
+         if (d[3] > 8) return layer
+       } catch (e) { return layer }
+     }
+     // 第二轮：图片类图层按矩形命中
+     for (let i = layers.length - 1; i >= 0; i--) {
+       const layer = layers[i]
+       if (!usable(layer) || !layer.transformable) continue
+       if (hitRect(layer)) return layer
      }
      return null
    }
+
 
    function drawBitmapSelection(layer) {
      if (!layer) return
@@ -486,7 +496,7 @@
      if (!(box.w > 0 && box.h > 0)) return
      const ctx = S.overlayCtx
      const rot = layer.rotation || 0
-     const hs = 4 / S.zoom
+     const hs = 5.5 / S.zoom
      ctx.save()
      ctx.strokeStyle = '#e8a735'
      ctx.lineWidth = 1.5 / S.zoom
@@ -553,6 +563,7 @@
      if (drag.mode === 'move') {
        layer.x = base.x + pos.x - drag.start.x
        layer.y = base.y + pos.y - drag.start.y
+       if (isDrawableLayer(layer)) layer._bounds = undefined
      } else if (drag.mode === 'rotate') {
        const rcx = base.x + base.w / 2, rcy = base.y + base.h / 2
        const a0 = Math.atan2(drag.start.y - rcy, drag.start.x - rcx)
@@ -593,6 +604,7 @@
        }
        layer.x = x; layer.y = y; layer.w = w; layer.h = h
      }
+     if (isDrawableLayer(layer)) layer._bounds = undefined
      redrawBitmapLayer(layer)
    }
 
@@ -740,7 +752,7 @@ function setActiveLayer(id) {
     ctx.stroke()
     ctx.setLineDash([])
     // 8 个缩放手柄（旋转后位置）
-    const hs = 5 / S.zoom
+    const hs = 6.5 / S.zoom
     ctx.fillStyle = '#fff'
     ctx.strokeStyle = '#4488ff'
     ctx.lineWidth = 1.5 / S.zoom
@@ -1425,7 +1437,7 @@ function setActiveLayer(id) {
   /** 命中旋转手柄（传局部坐标点） */
   function hitRotationHandle(lp, b) {
     const pts = rotationHandlesLocal(b)
-    const R = Math.max(14 / Math.max(S.zoom, 0.0001), 9)
+    const R = Math.max(16 / Math.max(S.zoom, 0.0001), 10)
     for (const pt of pts) {
       if (Math.hypot(lp[0] - pt[0], lp[1] - pt[1]) < R) return true
     }
@@ -1435,7 +1447,7 @@ function setActiveLayer(id) {
   function drawRotationHandles(ctx, b, rot) {
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2
     const pts = rotationHandlesLocal(b)
-    const r = Math.max(5 / Math.max(S.zoom, 0.0001), 4)
+    const r = Math.max(6.5 / Math.max(S.zoom, 0.0001), 5)
     ctx.save()
     ctx.strokeStyle = '#e8a735'
     ctx.lineWidth = 2 / Math.max(S.zoom, 0.0001)
@@ -2595,7 +2607,7 @@ function setActiveLayer(id) {
     if (hitRotationHandle(lp, b)) return 'rotate'
     const pts = shapeHandlePoints(s)
     const offset = 8 / S.zoom
-    const R = Math.max(16 / S.zoom, 10)
+    const R = Math.max(18 / S.zoom, 11)
     let best = null, bestDist = 1e9
     for (const name in pts) {
       const px = pts[name][0] + (name.includes('w') ? -offset : name.includes('e') ? offset : 0)
@@ -2694,7 +2706,7 @@ function setActiveLayer(id) {
     octx.closePath()
     octx.stroke()
     octx.setLineDash([])
-    const hs = 6 / S.zoom
+    const hs = 7 / S.zoom
     octx.fillStyle = '#ffffff'
     octx.strokeStyle = '#e8a735'
     const pts = shapeHandleWorld(s)
@@ -2750,7 +2762,7 @@ function setActiveLayer(id) {
       octx.closePath()
       octx.stroke()
       octx.setLineDash([])
-      const hs = 4 / S.zoom
+      const hs = 5.5 / S.zoom
       octx.fillStyle = '#ffffff'
       octx.strokeStyle = '#e8a735'
       const pts = textHandlePoints(sel)
