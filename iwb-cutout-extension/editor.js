@@ -360,33 +360,61 @@
   function redrawBitmapLayer(layer) {
      if (!layer || !layer.ctx) return
      layer.ctx.clearRect(0, 0, S.imgW, S.imgH)
+     const rot = layer.rotation || 0
+     const cx = layer.x + layer.w / 2, cy = layer.y + layer.h / 2
+     layer.ctx.save()
+     if (rot) {
+       layer.ctx.translate(cx, cy)
+       layer.ctx.rotate(rot * Math.PI / 180)
+       layer.ctx.translate(-cx, -cy)
+     }
      if (layer.image && layer.w > 0 && layer.h > 0) layer.ctx.drawImage(layer.image, layer.x, layer.y, layer.w, layer.h)
       else if (layer.sourceCanvas && layer.w > 0 && layer.h > 0) {
         layer.ctx.drawImage(layer.sourceCanvas, layer.x, layer.y, layer.w, layer.h)
       }
+     layer.ctx.restore()
    }
 
+
    function bitmapHandlePoints(layer) {
-     return {
+     const rot = layer.rotation || 0
+     const cx = layer.x + layer.w / 2, cy = layer.y + layer.h / 2
+     const local = {
        nw: [layer.x, layer.y], ne: [layer.x + layer.w, layer.y],
        sw: [layer.x, layer.y + layer.h], se: [layer.x + layer.w, layer.y + layer.h],
        n: [layer.x + layer.w / 2, layer.y], s: [layer.x + layer.w / 2, layer.y + layer.h],
        e: [layer.x + layer.w, layer.y + layer.h / 2], w: [layer.x, layer.y + layer.h / 2]
      }
+     const out = {}
+     for (const k in local) out[k] = rotPt(local[k][0], local[k][1], cx, cy, rot)
+     out.rotate = rotPt(layer.x + layer.w / 2, layer.y - ROT_HANDLE_OFFSET, cx, cy, rot)
+     return out
    }
+
 
    function hitBitmapHandle(pos) {
      const layer = S.layers.find(l => l.id === S.selectedLayerId && l.transformable)
      if (!layer || layer.visible === false) return null
-     const points = bitmapHandlePoints(layer)
-     const radius = 12 / S.zoom
+     const rot = layer.rotation || 0
+     const cx = layer.x + layer.w / 2, cy = layer.y + layer.h / 2
+     const lp = unrotPt(pos.x, pos.y, cx, cy, rot)
+     const R = 12 / S.zoom
+     const rh = [layer.x + layer.w / 2, layer.y - ROT_HANDLE_OFFSET]
+     if (Math.hypot(lp[0] - rh[0], lp[1] - rh[1]) < R) return 'rotate'
+     const points = {
+       nw: [layer.x, layer.y], ne: [layer.x + layer.w, layer.y],
+       sw: [layer.x, layer.y + layer.h], se: [layer.x + layer.w, layer.y + layer.h],
+       n: [layer.x + layer.w / 2, layer.y], s: [layer.x + layer.w / 2, layer.y + layer.h],
+       e: [layer.x + layer.w, layer.y + layer.h / 2], w: [layer.x, layer.y + layer.h / 2]
+     }
      let hit = null, best = Infinity
      for (const name in points) {
-       const distance = Math.hypot(pos.x - points[name][0], pos.y - points[name][1])
-       if (distance < radius && distance < best) { best = distance; hit = name }
+       const distance = Math.hypot(lp[0] - points[name][0], lp[1] - points[name][1])
+       if (distance < R && distance < best) { best = distance; hit = name }
      }
      return hit
    }
+
 
    function hitBitmapLayer(pos) {
      const layers = [...S.layers].sort((a, b) => (a.z || 0) - (b.z || 0))
@@ -401,23 +429,36 @@
    function drawBitmapSelection(layer) {
      if (!layer || !layer.transformable) return
      const ctx = S.overlayCtx
+     const rot = layer.rotation || 0
      const hs = 4 / S.zoom
      ctx.save()
      ctx.strokeStyle = '#e8a735'
      ctx.lineWidth = 1.5 / S.zoom
      ctx.setLineDash([6 / S.zoom, 3 / S.zoom])
-     ctx.strokeRect(layer.x, layer.y, layer.w, layer.h)
+     const corners = boxCorners(layer.x, layer.y, layer.w, layer.h, rot)
+     ctx.beginPath()
+     ctx.moveTo(corners[0][0], corners[0][1])
+     for (let i = 1; i < corners.length; i++) ctx.lineTo(corners[i][0], corners[i][1])
+     ctx.closePath()
+     ctx.stroke()
      ctx.setLineDash([])
      ctx.fillStyle = '#fff'
      ctx.strokeStyle = '#e8a735'
-     for (const point of Object.values(bitmapHandlePoints(layer))) {
+     const pts = bitmapHandlePoints(layer)
+     const topMid = rotPt(layer.x + layer.w / 2, layer.y, layer.x + layer.w / 2, layer.y + layer.h / 2, rot)
+     ctx.beginPath()
+     ctx.moveTo(topMid[0], topMid[1])
+     ctx.lineTo(pts.rotate[0], pts.rotate[1])
+     ctx.stroke()
+     for (const name in pts) {
        ctx.beginPath()
-       ctx.rect(point[0] - hs, point[1] - hs, hs * 2, hs * 2)
-       ctx.fill()
-       ctx.stroke()
+       if (name === 'rotate') { ctx.arc(pts[name][0], pts[name][1], hs * 1.4, 0, Math.PI * 2) }
+       else { ctx.rect(pts[name][0] - hs, pts[name][1] - hs, hs * 2, hs * 2) }
+       ctx.fill(); ctx.stroke()
      }
      ctx.restore()
    }
+
 
    function beginBitmapDrag(handle, pos) {
      const layer = S.layers.find(l => l.id === S.selectedLayerId)
@@ -429,8 +470,8 @@
         layer.sourceCanvas.getContext('2d').drawImage(layer.canvas, 0, 0)
       }
       S.bitmapDrag = {
-       mode: handle ? 'scale' : 'move', handle, start: pos,
-       layer: { x: layer.x, y: layer.y, w: layer.w, h: layer.h }, pending: snapshotState()
+       mode: handle === 'rotate' ? 'rotate' : (handle ? 'scale' : 'move'), handle, start: pos,
+       layer: { x: layer.x, y: layer.y, w: layer.w, h: layer.h, rotation: layer.rotation || 0 }, pending: snapshotState()
      }
    }
 
@@ -442,13 +483,21 @@
      if (drag.mode === 'move') {
        layer.x = base.x + pos.x - drag.start.x
        layer.y = base.y + pos.y - drag.start.y
+     } else if (drag.mode === 'rotate') {
+       const rcx = base.x + base.w / 2, rcy = base.y + base.h / 2
+       const a0 = Math.atan2(drag.start.y - rcy, drag.start.x - rcx)
+       const a1 = Math.atan2(pos.y - rcy, pos.x - rcx)
+       let deg = (base.rotation || 0) + (a1 - a0) * 180 / Math.PI
+       if (S._shiftDown) deg = Math.round(deg / 15) * 15
+       layer.rotation = deg
      } else {
+       const lpos = unrotPt(pos.x, pos.y, base.x + base.w / 2, base.y + base.h / 2, base.rotation || 0)
        let x = base.x, y = base.y, w = base.w, h = base.h
        const min = 4
-       if (drag.handle.includes('e')) w = Math.max(min, pos.x - base.x)
-       if (drag.handle.includes('s')) h = Math.max(min, pos.y - base.y)
-       if (drag.handle.includes('w')) { x = Math.min(pos.x, base.x + base.w - min); w = base.x + base.w - x }
-       if (drag.handle.includes('n')) { y = Math.min(pos.y, base.y + base.h - min); h = base.y + base.h - y }
+       if (drag.handle.includes('e')) w = Math.max(min, lpos[0] - base.x)
+       if (drag.handle.includes('s')) h = Math.max(min, lpos[1] - base.y)
+       if (drag.handle.includes('w')) { x = Math.min(lpos[0], base.x + base.w - min); w = base.x + base.w - x }
+       if (drag.handle.includes('n')) { y = Math.min(lpos[1], base.y + base.h - min); h = base.y + base.h - y }
        if (S._shiftDown && layer.image) {
          const iw = layer.image.naturalWidth || layer.image.width
          const ih = layer.image.naturalHeight || layer.image.height
@@ -495,6 +544,7 @@ function setActiveLayer(id) {
        locked: false,
       z: ++S.zCounter
     }
+    redrawBitmapLayer(layer)
     saveSnapshot()
     S.layers.push(layer)
     setActiveLayer(id)
@@ -519,7 +569,7 @@ function setActiveLayer(id) {
     // 居中
     const x = Math.round((S.imgW - w) / 2)
     const y = Math.round((S.imgH - h) / 2)
-    S.placingImage = { img, x, y, w, h }
+    S.placingImage = { img, x, y, w, h, rotation: 0 }
     S.placingHandle = null
     S.placingStart = null
     S.drawCanvasCursor('move')
@@ -530,6 +580,7 @@ function setActiveLayer(id) {
   function confirmImagePlacement() {
     if (!S.placingImage) return
     const { img, x, y, w, h } = S.placingImage
+    const placementRotation = S.placingImage.rotation || 0
     S.placingImage = null
     S.placingHandle = null
     S.placingStart = null
@@ -539,10 +590,9 @@ function setActiveLayer(id) {
     const canvas = createLayerCanvas()
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     ctx.clearRect(0, 0, S.imgW, S.imgH)
-    ctx.drawImage(img, x, y, w, h) // image placement
     const layer = {
       id,
-      name: '图层 ' + (S.layers.length + 1), image: img, x, y, w, h, transformable: true,
+      name: '图层 ' + (S.layers.length + 1), image: img, x, y, w, h, rotation: placementRotation, transformable: true,
       canvas,
       ctx,
       opacity: 1,
@@ -572,80 +622,116 @@ function setActiveLayer(id) {
     if (!S.placingImage) return
     const ctx = S.overlayCtx
     const { img, x, y, w, h } = S.placingImage
+    const rot = S.placingImage.rotation || 0
+    const cx = x + w / 2, cy = y + h / 2
     clearOverlay()
     // 半透明遮罩
     ctx.save()
     ctx.fillStyle = 'rgba(0,0,0,0.35)'
     ctx.fillRect(0, 0, S.imgW, S.imgH)
     ctx.restore()
-    // 画图片
-    ctx.drawImage(img, x, y, w, h) // image placement
-    // 选区边框
+    // 画图片（带旋转）
+    ctx.save()
+    ctx.translate(cx, cy)
+    if (rot) ctx.rotate(rot * Math.PI / 180)
+    ctx.translate(-cx, -cy)
+    ctx.drawImage(img, x, y, w, h)
+    ctx.restore()
+    // 选区边框（旋转后）
+    const corners = boxCorners(x, y, w, h, rot)
     ctx.save()
     ctx.strokeStyle = '#4488ff'
     ctx.lineWidth = 2 / S.zoom
     ctx.setLineDash([8 / S.zoom, 4 / S.zoom])
-    ctx.strokeRect(x, y, w, h)
+    ctx.beginPath()
+    ctx.moveTo(corners[0][0], corners[0][1])
+    for (let i = 1; i < corners.length; i++) ctx.lineTo(corners[i][0], corners[i][1])
+    ctx.closePath()
+    ctx.stroke()
     ctx.setLineDash([])
-    // 手柄
+    // 8 个缩放手柄（旋转后位置）
     const hs = 5 / S.zoom
     ctx.fillStyle = '#fff'
     ctx.strokeStyle = '#4488ff'
     ctx.lineWidth = 1.5 / S.zoom
-    const pts = {
+    const localPts = {
       nw: [x, y], ne: [x + w, y],
       sw: [x, y + h], se: [x + w, y + h],
       n: [x + w / 2, y], s: [x + w / 2, y + h],
       e: [x + w, y + h / 2], w: [x, y + h / 2]
     }
-    for (const name in pts) {
+    for (const name in localPts) {
+      const ptp = rotPt(localPts[name][0], localPts[name][1], cx, cy, rot)
       ctx.beginPath()
-      ctx.rect(pts[name][0] - hs, pts[name][1] - hs, hs * 2, hs * 2)
+      ctx.rect(ptp[0] - hs, ptp[1] - hs, hs * 2, hs * 2)
       ctx.fill()
       ctx.stroke()
     }
+    // 旋转手柄（上边中点外侧）
+    const topMid = rotPt(x + w / 2, y, cx, cy, rot)
+    const rotHandle = rotPt(x + w / 2, y - ROT_HANDLE_OFFSET, cx, cy, rot)
+    ctx.beginPath()
+    ctx.moveTo(topMid[0], topMid[1])
+    ctx.lineTo(rotHandle[0], rotHandle[1])
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(rotHandle[0], rotHandle[1], 6 / S.zoom, 0, Math.PI * 2)
+    ctx.fillStyle = '#fff'
+    ctx.fill()
+    ctx.stroke()
     ctx.restore()
     // 提示文字
     ctx.save()
     ctx.font = 'bold ' + Math.round(14 / S.zoom) + 'px sans-serif'
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    const hintText = '拖拽手柄调整大小 · Shift=等比 · Enter=确认 · Esc=取消'
-    const hintY = S.placingImage.y + S.placingImage.h + 10 / S.zoom
-    // 提示文字背景
+    const hintText = '拖拽手柄调整大小 · 圆点=旋转 · Shift=等比/15°吸附 · Enter=确认 · Esc=取消'
+    const br = boxCorners(x, y, w, h, rot).reduce((acc, pt) => Math.max(acc, pt[1]), -Infinity)
+    const hintY = br + 10 / S.zoom
     const tw = ctx.measureText(hintText).width
     ctx.fillStyle = 'rgba(0,0,0,0.6)'
-    ctx.fillRect(S.placingImage.x + S.placingImage.w / 2 - tw / 2 - 6 / S.zoom, hintY, tw + 12 / S.zoom, 22 / S.zoom)
+    ctx.fillRect(cx - tw / 2 - 6 / S.zoom, hintY, tw + 12 / S.zoom, 22 / S.zoom)
     ctx.fillStyle = 'rgba(255,255,255,0.95)'
-    ctx.fillText(hintText, S.placingImage.x + S.placingImage.w / 2, hintY + 4 / S.zoom)
+    ctx.fillText(hintText, cx, hintY + 4 / S.zoom)
     ctx.restore()
   }
+
   function hitPlacementHandle(pos) {
     if (!S.placingImage) return null
     const { x, y, w, h } = S.placingImage
+    const rot = S.placingImage.rotation || 0
+    const cx = x + w / 2, cy = y + h / 2
+    const lp = unrotPt(pos.x, pos.y, cx, cy, rot)
+    const R = 12 / S.zoom
+    // 旋转手柄
+    const rh = [x + w / 2, y - ROT_HANDLE_OFFSET]
+    if (Math.hypot(lp[0] - rh[0], lp[1] - rh[1]) < R) return 'rotate'
     const pts = {
       nw: [x, y], ne: [x + w, y],
       sw: [x, y + h], se: [x + w, y + h],
       n: [x + w / 2, y], s: [x + w / 2, y + h],
       e: [x + w, y + h / 2], w: [x, y + h / 2]
     }
-    const R = 12 / S.zoom
     let best = null, bestDist = 1e9
     for (const name in pts) {
-      const dx = pos.x - pts[name][0], dy = pos.y - pts[name][1]
+      const dx = lp[0] - pts[name][0], dy = lp[1] - pts[name][1]
       const d = dx * dx + dy * dy
       if (d < R * R && d < bestDist) { bestDist = d; best = name }
     }
     return best
   }
 
+
   /** 检查是否在放置矩形内 */
   function insidePlacementRect(pos) {
     if (!S.placingImage) return false
     const { x, y, w, h } = S.placingImage
-    return pos.x >= x && pos.x <= x + w && pos.y >= y && pos.y <= y + h
+    const rot = S.placingImage.rotation || 0
+    const cx = x + w / 2, cy = y + h / 2
+    const lp = unrotPt(pos.x, pos.y, cx, cy, rot)
+    return lp[0] >= x && lp[0] <= x + w && lp[1] >= y && lp[1] <= y + h
   }
+
 
   /** 放置手柄拖拽：根据手柄调整图片大小 */
   function resizePlacement(pos) {
@@ -664,6 +750,20 @@ function setActiveLayer(id) {
       S.placingImage.y = s.y + dy
       return
     }
+
+    if (hh === 'rotate') {
+      const rcx = s.x + s.w / 2, rcy = s.y + s.h / 2
+      const a0 = Math.atan2(s.my - rcy, s.mx - rcx)
+      const a1 = Math.atan2(pos.y - rcy, pos.x - rcx)
+      let deg = (s.rotation || 0) + (a1 - a0) * 180 / Math.PI
+      if (S._shiftDown) deg = Math.round(deg / 15) * 15
+      S.placingImage.rotation = deg
+      return
+    }
+
+    // 缩放：先反旋转到图片局部坐标系再计算
+    const loc = unrotPt(pos.x, pos.y, s.x + s.w / 2, s.y + s.h / 2, s.rotation || 0)
+    pos = { x: loc[0], y: loc[1] }
 
     // 计算新矩形
     let nx = s.x, ny = s.y, nw = s.w, nh = s.h
@@ -1214,6 +1314,22 @@ function setActiveLayer(id) {
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 
+  // ============ 旋转辅助 ============
+  const ROT_HANDLE_OFFSET = 28 // 旋转手柄相对上边中点的距离（图片坐标）
+  function rotPt(px, py, cx, cy, deg) {
+    if (!deg) return [px, py]
+    const a = deg * Math.PI / 180, sn = Math.sin(a), cs = Math.cos(a)
+    const dx = px - cx, dy = py - cy
+    return [cx + dx * cs - dy * sn, cy + dx * sn + dy * cs]
+  }
+  function unrotPt(px, py, cx, cy, deg) {
+    return rotPt(px, py, cx, cy, -(deg || 0))
+  }
+  function boxCorners(x, y, w, h, rot) {
+    const cx = x + w / 2, cy = y + h / 2
+    return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].map(pt => rotPt(pt[0], pt[1], cx, cy, rot))
+  }
+
   function resetState() {
     purgeVectorCanvases()
     S.history = []
@@ -1292,6 +1408,7 @@ function setActiveLayer(id) {
          id: layer.id,
          data,
          x: layer.x, y: layer.y, w: layer.w, h: layer.h,
+         rotation: layer.rotation || 0,
          transformable: !!layer.transformable,
          locked: !!layer.locked
        }
@@ -1324,6 +1441,7 @@ function setActiveLayer(id) {
           layer.w = bm.w
           layer.h = bm.h
           layer.locked = !!bm.locked
+          layer.rotation = bm.rotation || 0
           if (layer.transformable && (layer.image || layer.sourceCanvas)) {
             redrawBitmapLayer(layer)
           } else if (bm.data) {
@@ -2652,13 +2770,13 @@ function setActiveLayer(id) {
       const handle = hitPlacementHandle(pos)
       if (handle) {
         S.placingHandle = handle
-        S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y, w: S.placingImage.w, h: S.placingImage.h }
+        S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y, w: S.placingImage.w, h: S.placingImage.h, rotation: S.placingImage.rotation || 0 }
         S.drawCanvasCursor(CROP_CURSORS[handle] || 'move')
         return
       }
       if (insidePlacementRect(pos)) {
         S.placingHandle = 'move'
-        S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y }
+        S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y, rotation: S.placingImage.rotation || 0 }
         S.drawCanvasCursor('move')
         return
       }
