@@ -1266,8 +1266,9 @@
     const pos = getPos(e);
     S.startX = pos.x;
     S.startY = pos.y;
-    if ((S.tool === "select" || S.tool === "pen") && getPenEditingShape()) {
-      if (onPenEditMouseDown(e, pos)) return;
+    if (S.tool === "select" || S.tool === "pen") {
+      const penShape = getPenEditingShape();
+      if (penShape && onPenEditMouseDown(e, pos, penShape)) return;
     }
     const handler = Object.prototype.hasOwnProperty.call(MOUSE_DOWN_HANDLERS, S.tool) ? MOUSE_DOWN_HANDLERS[S.tool] : null;
     if (handler) handler(pos);
@@ -1297,11 +1298,9 @@
     S.panStart = { x: e.clientX, y: e.clientY, vx: S.viewX || 0, vy: S.viewY || 0 };
     updateCursor();
   }
-  function onPenEditMouseDown(e, pos) {
-    const penShape = getPenEditingShape();
+  function onPenEditMouseDown(e, pos, penShape) {
     const pi = hitPenPoint(pos, penShape, Math.max(16 / S.zoom, 9));
     if (pi >= 0) {
-      e.preventDefault();
       S.penDragPt = pi;
       S.penDragBase = JSON.parse(JSON.stringify(penShape.pts));
       S.penDragPending = snapshotState();
@@ -1309,7 +1308,6 @@
     }
     const ei = hitPenEdgeInsert(pos, penShape);
     if (ei >= 0) {
-      e.preventDefault();
       saveSnapshot();
       penShape.pts.splice(ei + 1, 0, { x: pos.x, y: pos.y });
       renderObjects();

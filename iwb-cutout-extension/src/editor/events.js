@@ -47,8 +47,9 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     S.startY = pos.y
 
     // 钢笔节点编辑优先：点节点/点边直接接管；点空白退出编辑后继续走下方工具逻辑
-    if ((S.tool === 'select' || S.tool === 'pen') && getPenEditingShape()) {
-      if (onPenEditMouseDown(e, pos)) return
+    if ((S.tool === 'select' || S.tool === 'pen')) {
+      const penShape = getPenEditingShape()
+      if (penShape && onPenEditMouseDown(e, pos, penShape)) return
     }
 
     const handler = Object.prototype.hasOwnProperty.call(MOUSE_DOWN_HANDLERS, S.tool) ? MOUSE_DOWN_HANDLERS[S.tool] : null
@@ -86,11 +87,9 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
   }
 
   /** 钢笔节点编辑中的按下：点节点拖动/点边插点返回 true（已接管）；点空白退出编辑返回 false 继续走工具逻辑 */
-  function onPenEditMouseDown(e, pos) {
-    const penShape = getPenEditingShape()
+  function onPenEditMouseDown(e, pos, penShape) {
     const pi = hitPenPoint(pos, penShape, Math.max(16 / S.zoom, 9))
     if (pi >= 0) {
-      e.preventDefault()
       S.penDragPt = pi
       S.penDragBase = JSON.parse(JSON.stringify(penShape.pts))
       S.penDragPending = snapshotState()
@@ -98,7 +97,6 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     }
     const ei = hitPenEdgeInsert(pos, penShape)
     if (ei >= 0) {
-      e.preventDefault()
       saveSnapshot()
       penShape.pts.splice(ei + 1, 0, { x: pos.x, y: pos.y })
       renderObjects()
