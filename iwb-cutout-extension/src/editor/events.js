@@ -255,277 +255,387 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
       S.isDrawing = true
   }
 
+  /** 绘制中移动分发表：公共前置（放置/平移/各拖拽态/isDrawing）走完后按 S.tool 派发到对应处理器 */
+  const DRAW_MOVE_HANDLERS = {
+    brush: onBrushDrawMove,
+    eraser: onEraserDrawMove,
+    pen: onPenDrawMove,
+    rect: onShapeDrawMove,
+    arrow: onShapeDrawMove,
+    circle: onShapeDrawMove,
+    crop: onCropDrawMove
+  }
+
   function onMouseMove(e) {
     // 图片放置拖拽
     if (S.placingImage && S.placingHandle && S.placingStart) {
-      const pos = getPos(e)
-      resizePlacement(pos)
-      drawPlacementPreview()
-      return
+      onPlacementDragMove(e); return
     }
     // 图片放置 hover 光标
     if (S.placingImage) {
-      const pos = getPos(e)
-      const h = hitPlacementHandle(pos)
-      if (h) S.drawCanvasCursor(h === 'rotate' ? ROT_CURSOR : (CROP_CURSORS[h] || 'move'))
-      else S.drawCanvasCursor(insidePlacementRect(pos) ? 'move' : 'default')
-      return
+      onPlacementHoverMove(e); return
     }
 
     if (S.panning && S.panStart) {
-      setView(S.panStart.vx + (e.clientX - S.panStart.x),
-              S.panStart.vy + (e.clientY - S.panStart.y))
-      return
+      onPanMouseMove(e); return
     }
     const pos0 = getPos(e)
     if (S.bitmapDrag) {
-      applyBitmapDrag(pos0)
-      renderObjects()
-      return
+      onBitmapDragMouseMove(pos0); return
     }
     if (S.textDrag) {
-      const t = getSelectedText()
-      if (t) {
-        if (S.textDrag.mode === 'move') {
-          const dx = pos0.x - S.textDrag.start.x
-          const dy = pos0.y - S.textDrag.start.y
-          t.x = clamp(S.textDrag.layer.x + dx, 0, Math.max(0, S.imgW - 4))
-          t.y = clamp(S.textDrag.layer.y + dy, 0, Math.max(0, S.imgH - 4))
-        } else if (S.textDrag.mode === 'rotate') {
-          const st = S.textDrag
-          const a1 = Math.atan2(pos0.y - st.cy, pos0.x - st.cx)
-          const a0 = Math.atan2(st.startY0 - st.cy, st.startX0 - st.cx)
-          let deg = st.rotation
-          if (st.startX0 !== undefined) deg = st.rotation + (a1 - a0) * 180 / Math.PI
-          if (S._shiftDown) deg = Math.round(deg / 15) * 15
-          t.rotation = deg
-        } else if (S.textDrag.mode === 'scale') {
-          const dx = pos0.x - S.textDrag.anchor.x
-          const dy = pos0.y - S.textDrag.anchor.y
-          const d = Math.sqrt(dx * dx + dy * dy)
-          const f = d / Math.max(S.textDrag.d0, 1)
-          t.fontSize = clamp(Math.round(S.textDrag.fontSize * f), 8, 2000)
-        }
-        renderObjects()
-      }
-      return
+      onTextDragMouseMove(pos0); return
     }
     if (S.penDragPt >= 0) {
-      const penShape = getPenEditingShape()
-      if (penShape && penShape.pts[S.penDragPt]) {
-        penShape.pts[S.penDragPt].x = clamp(pos0.x, 0, S.imgW)
-        penShape.pts[S.penDragPt].y = clamp(pos0.y, 0, S.imgH)
-        renderObjects()
-      }
-      return
+      onPenEditDragMove(pos0); return
     }
     if (S.shapeDrag) {
-      const sh = getSelectedShape()
-      if (sh) {
-        if (S.shapeDrag.mode === 'move') {
-          const dx = pos0.x - S.shapeDrag.start.x
-          const dy = pos0.y - S.shapeDrag.start.y
-          const b = shapeBounds(S.shapeDrag.shape)
-          const cdx = clamp(dx, -b.x, Math.max(-b.x, S.imgW - (b.x + b.w)))
-          const cdy = clamp(dy, -b.y, Math.max(-b.y, S.imgH - (b.y + b.h)))
-          if (sh.type === 'pen') {
-            sh.pts = (S.shapeDrag.shape.pts || []).map(p => ({ x: p.x + cdx, y: p.y + cdy }))
-          } else {
-            sh.x1 = S.shapeDrag.shape.x1 + cdx
-            sh.y1 = S.shapeDrag.shape.y1 + cdy
-            sh.x2 = S.shapeDrag.shape.x2 + cdx
-            sh.y2 = S.shapeDrag.shape.y2 + cdy
-          }
-        } else {
-          applyShapeHandle(sh, S.shapeDrag.handle, pos0)
-        }
-        renderObjects()
-      }
-      return
+      onShapeDragMouseMove(pos0); return
     }
     if (!S.isDrawing) return
     const pos = pos0
 
-    if (S.tool === 'brush') {
-      strokeSegment(S.startX, S.startY, pos.x, pos.y)
-      S.startX = pos.x
-      S.startY = pos.y
-      drawToolRing(pos)
-    } else if (S.tool === 'eraser') {
-      eraseSegment(S.startX, S.startY, pos.x, pos.y)
-      S.startX = pos.x
-      S.startY = pos.y
-      drawToolRing(pos)
-    } else if (S.tool === 'pen') {
-      if (S.penPath) { S.penPath.preview = pos; const first = S.penPath.pts[0]
-        const nearStart = first && S.penPath.pts.length >= 3 && Math.hypot(pos.x - first.x, pos.y - first.y) <= Math.max(12 / S.zoom, S.brushSize * 1.5)
-        S.penPath.nearStart = !!nearStart
-        renderObjects() }
-    } else if (S.tool === 'rect' || S.tool === 'arrow' || S.tool === 'circle') {
-      const temp = {
-        id: 'temp',
-        type: S.tool,
-        x1: S.startX, y1: S.startY,
-        x2: pos.x, y2: pos.y,
-        color: S.color,
-        lw: Math.max(2, S.brushSize),
-        lineWidth: Math.max(2, S.brushSize),
-        fill: S.tool === 'rect' || S.tool === 'circle' ? !!S.rectFill : false,
-        opacity: 1,
-        visible: true
+    const handler = Object.prototype.hasOwnProperty.call(DRAW_MOVE_HANDLERS, S.tool) ? DRAW_MOVE_HANDLERS[S.tool] : null
+    if (handler) handler(pos)
+  }
+
+  /** 图片放置拖拽：按手柄/整体拖拽调整放置框并刷新预览 */
+  function onPlacementDragMove(e) {
+    const pos = getPos(e)
+    resizePlacement(pos)
+    drawPlacementPreview()
+    return
+  }
+
+  /** 图片放置 hover：按命中手柄/区域切换画布光标 */
+  function onPlacementHoverMove(e) {
+    const pos = getPos(e)
+    const h = hitPlacementHandle(pos)
+    if (h) S.drawCanvasCursor(h === 'rotate' ? ROT_CURSOR : (CROP_CURSORS[h] || 'move'))
+    else S.drawCanvasCursor(insidePlacementRect(pos) ? 'move' : 'default')
+    return
+  }
+
+  /** 平移：按鼠标位移更新画布视口 */
+  function onPanMouseMove(e) {
+    setView(S.panStart.vx + (e.clientX - S.panStart.x),
+            S.panStart.vy + (e.clientY - S.panStart.y))
+    return
+  }
+
+  /** 位图层拖拽：应用位移/缩放并重绘对象层 */
+  function onBitmapDragMouseMove(pos0) {
+    applyBitmapDrag(pos0)
+    renderObjects()
+    return
+  }
+
+  /** 文字拖拽：按模式移动/旋转/缩放选中文字后重绘 */
+  function onTextDragMouseMove(pos0) {
+    const t = getSelectedText()
+    if (t) {
+      if (S.textDrag.mode === 'move') {
+        const dx = pos0.x - S.textDrag.start.x
+        const dy = pos0.y - S.textDrag.start.y
+        t.x = clamp(S.textDrag.layer.x + dx, 0, Math.max(0, S.imgW - 4))
+        t.y = clamp(S.textDrag.layer.y + dy, 0, Math.max(0, S.imgH - 4))
+      } else if (S.textDrag.mode === 'rotate') {
+        const st = S.textDrag
+        const a1 = Math.atan2(pos0.y - st.cy, pos0.x - st.cx)
+        const a0 = Math.atan2(st.startY0 - st.cy, st.startX0 - st.cx)
+        let deg = st.rotation
+        if (st.startX0 !== undefined) deg = st.rotation + (a1 - a0) * 180 / Math.PI
+        if (S._shiftDown) deg = Math.round(deg / 15) * 15
+        t.rotation = deg
+      } else if (S.textDrag.mode === 'scale') {
+        const dx = pos0.x - S.textDrag.anchor.x
+        const dy = pos0.y - S.textDrag.anchor.y
+        const d = Math.sqrt(dx * dx + dy * dy)
+        const f = d / Math.max(S.textDrag.d0, 1)
+        t.fontSize = clamp(Math.round(S.textDrag.fontSize * f), 8, 2000)
       }
-      renderObjects(temp)
-    } else if (S.tool === 'crop') {
-      if (S.cropHandle) {
-        resizeCropRect(pos)
-        drawCropPreview()
-        updateCropInfo()
-      } else if (S.cropMoving && S.moveStart) {
-        const dx = pos.x - S.moveStart.x
-        const dy = pos.y - S.moveStart.y
-        const r = S.moveStart.rect
-        const nx = r.x + dx
-        const ny = r.y + dy
-        S.cropRect = { x: nx, y: ny, w: r.w, h: r.h }
-        drawCropPreview()
-        updateCropInfo()
-      } else {
-        drawCropPreview(S.startX, S.startY, pos.x, pos.y)
-        updateCropInfo()
-      }
+      renderObjects()
     }
+    return
+  }
+
+  /** 钢笔节点拖拽：更新当前顶点坐标并重绘 */
+  function onPenEditDragMove(pos0) {
+    const penShape = getPenEditingShape()
+    if (penShape && penShape.pts[S.penDragPt]) {
+      penShape.pts[S.penDragPt].x = clamp(pos0.x, 0, S.imgW)
+      penShape.pts[S.penDragPt].y = clamp(pos0.y, 0, S.imgH)
+      renderObjects()
+    }
+    return
+  }
+
+  /** 形状拖拽：整体移动按画布边界夹取，或走手柄变形，再重绘对象层 */
+  function onShapeDragMouseMove(pos0) {
+    const sh = getSelectedShape()
+    if (sh) {
+      if (S.shapeDrag.mode === 'move') {
+        const dx = pos0.x - S.shapeDrag.start.x
+        const dy = pos0.y - S.shapeDrag.start.y
+        const b = shapeBounds(S.shapeDrag.shape)
+        const cdx = clamp(dx, -b.x, Math.max(-b.x, S.imgW - (b.x + b.w)))
+        const cdy = clamp(dy, -b.y, Math.max(-b.y, S.imgH - (b.y + b.h)))
+        if (sh.type === 'pen') {
+          sh.pts = (S.shapeDrag.shape.pts || []).map(p => ({ x: p.x + cdx, y: p.y + cdy }))
+        } else {
+          sh.x1 = S.shapeDrag.shape.x1 + cdx
+          sh.y1 = S.shapeDrag.shape.y1 + cdy
+          sh.x2 = S.shapeDrag.shape.x2 + cdx
+          sh.y2 = S.shapeDrag.shape.y2 + cdy
+        }
+      } else {
+        applyShapeHandle(sh, S.shapeDrag.handle, pos0)
+      }
+      renderObjects()
+    }
+    return
+  }
+
+  /** 画笔绘制：延伸笔段、更新起点并刷新笔刷环 */
+  function onBrushDrawMove(pos) {
+    strokeSegment(S.startX, S.startY, pos.x, pos.y)
+    S.startX = pos.x
+    S.startY = pos.y
+    drawToolRing(pos)
+  }
+
+  /** 橡皮绘制：擦除延伸段、更新起点并刷新笔刷环 */
+  function onEraserDrawMove(pos) {
+    eraseSegment(S.startX, S.startY, pos.x, pos.y)
+    S.startX = pos.x
+    S.startY = pos.y
+    drawToolRing(pos)
+  }
+
+  /** 钢笔路径预览：更新悬停点与起点闭合提示 */
+  function onPenDrawMove(pos) {
+    if (S.penPath) { S.penPath.preview = pos; const first = S.penPath.pts[0]
+      const nearStart = first && S.penPath.pts.length >= 3 && Math.hypot(pos.x - first.x, pos.y - first.y) <= Math.max(12 / S.zoom, S.brushSize * 1.5)
+      S.penPath.nearStart = !!nearStart
+      renderObjects() }
+  }
+
+  /** 矩形/圆/箭头拉框：渲染临时形状预览 */
+  function onShapeDrawMove(pos) {
+    const temp = {
+      id: 'temp',
+      type: S.tool,
+      x1: S.startX, y1: S.startY,
+      x2: pos.x, y2: pos.y,
+      color: S.color,
+      lw: Math.max(2, S.brushSize),
+      lineWidth: Math.max(2, S.brushSize),
+      fill: S.tool === 'rect' || S.tool === 'circle' ? !!S.rectFill : false,
+      opacity: 1,
+      visible: true
+    }
+    renderObjects(temp)
+  }
+
+  /** 裁剪拉框/手柄拖拽/整框移动：刷新选区预览与裁剪信息 */
+  function onCropDrawMove(pos) {
+    if (S.cropHandle) {
+      resizeCropRect(pos)
+      drawCropPreview()
+      updateCropInfo()
+    } else if (S.cropMoving && S.moveStart) {
+      const dx = pos.x - S.moveStart.x
+      const dy = pos.y - S.moveStart.y
+      const r = S.moveStart.rect
+      const nx = r.x + dx
+      const ny = r.y + dy
+      S.cropRect = { x: nx, y: ny, w: r.w, h: r.h }
+      drawCropPreview()
+      updateCropInfo()
+    } else {
+      drawCropPreview(S.startX, S.startY, pos.x, pos.y)
+      updateCropInfo()
+    }
+  }
+
+  /** 绘制结束分发表：isDrawing 收尾与状态复位后按 S.tool 派发到对应收尾处理器 */
+  const DRAW_UP_HANDLERS = {
+    brush: onStrokeDrawUp,
+    eraser: onStrokeDrawUp,
+    crop: onCropDrawUp,
+    rect: onShapeDrawUp,
+    arrow: onShapeDrawUp,
+    circle: onShapeDrawUp
   }
 
   function onMouseUp(e) {
     if (S.penDragPt >= 0) {
-      const penShape = getPenEditingShape()
-      const pending = S.penDragPending
-      S.penDragPt = -1
-      S.penDragPending = null
-      S.penDragBase = null
-      if (pending && penShape) {
-        const cur = snapshotState({ metaOnly: true })
-        if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes)) {
-          pushHistory(S.history, pending)
-          S.redoStack = []
-        }
-      }
-      return
+      onPenEditMouseUp(); return
     }
     // 图片放置拖拽结束
     if (S.placingImage && S.placingHandle) {
-      S.placingHandle = null
-      S.placingStart = null
-      drawPlacementPreview()
-      return
+      onPlacementMouseUp(); return
     }
     if (S.panning) {
-      S.panning = false
-      S.panStart = null
-      updateCursor()
-      return
+      onPanMouseUp(); return
     }
     if (S.textDrag) {
-      const pending = S.textDrag.pending
-      if (pending) {
-        const cur = snapshotState({ metaOnly: true })
-        if (JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
-          pushHistory(S.history, pending)
-          S.redoStack = []
-        }
-      }
-      S.textDrag = null
-      renderLayerPanel()
-      return
+      onTextDragMouseUp(); return
     }
     if (S.bitmapDrag) {
-      const pending = S.bitmapDrag.pending
-      if (pending) {
-        const cur = snapshotState({ metaOnly: true })
-        const before = pending.bitmaps.find(b => b.id === S.selectedLayerId)
-        const after = cur.bitmaps.find(b => b.id === S.selectedLayerId)
-        if (before && after && JSON.stringify([before.x, before.y, before.w, before.h]) !== JSON.stringify([after.x, after.y, after.w, after.h])) {
-          pushHistory(S.history, pending)
-          S.redoStack = []
-        }
-      }
-      S.bitmapDrag = null
-      renderObjects()
-      renderLayerPanel()
-      return
+      onBitmapDragMouseUp(); return
     }
     if (S.shapeDrag) {
-      const pending = S.shapeDrag.pending
-      if (pending) {
-        const cur = snapshotState({ metaOnly: true })
-        if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes) ||
-            JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
-          pushHistory(S.history, pending)
-          S.redoStack = []
-        }
-      }
-      S.shapeDrag = null
-      renderLayerPanel()
-      return
+      onShapeDragMouseUp(); return
     }
     if (!S.isDrawing) return
     S.isDrawing = false
     const pos = getPos(e)
 
-    if (S.tool === 'brush' || S.tool === 'eraser') {
-      endStroke()
+    const handler = Object.prototype.hasOwnProperty.call(DRAW_UP_HANDLERS, S.tool) ? DRAW_UP_HANDLERS[S.tool] : null
+    if (handler) handler(pos)
+  }
+
+  /** 钢笔节点拖拽收尾：复位拖拽态并按差异入栈历史 */
+  function onPenEditMouseUp() {
+    const penShape = getPenEditingShape()
+    const pending = S.penDragPending
+    S.penDragPt = -1
+    S.penDragPending = null
+    S.penDragBase = null
+    if (pending && penShape) {
+      const cur = snapshotState({ metaOnly: true })
+      if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes)) {
+        pushHistory(S.history, pending)
+        S.redoStack = []
+      }
+    }
+    return
+  }
+
+  /** 图片放置拖拽结束：清手柄与起点并刷新预览 */
+  function onPlacementMouseUp() {
+    S.placingHandle = null
+    S.placingStart = null
+    drawPlacementPreview()
+    return
+  }
+
+  /** 平移结束：复位平移态并刷新光标 */
+  function onPanMouseUp() {
+    S.panning = false
+    S.panStart = null
+    updateCursor()
+    return
+  }
+
+  /** 文字拖拽收尾：按差异入栈历史并刷新图层面板 */
+  function onTextDragMouseUp() {
+    const pending = S.textDrag.pending
+    if (pending) {
+      const cur = snapshotState({ metaOnly: true })
+      if (JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
+        pushHistory(S.history, pending)
+        S.redoStack = []
+      }
+    }
+    S.textDrag = null
+    renderLayerPanel()
+    return
+  }
+
+  /** 位图层拖拽收尾：按位图差异入栈历史并重绘 */
+  function onBitmapDragMouseUp() {
+    const pending = S.bitmapDrag.pending
+    if (pending) {
+      const cur = snapshotState({ metaOnly: true })
+      const before = pending.bitmaps.find(b => b.id === S.selectedLayerId)
+      const after = cur.bitmaps.find(b => b.id === S.selectedLayerId)
+      if (before && after && JSON.stringify([before.x, before.y, before.w, before.h]) !== JSON.stringify([after.x, after.y, after.w, after.h])) {
+        pushHistory(S.history, pending)
+        S.redoStack = []
+      }
+    }
+    S.bitmapDrag = null
+    renderObjects()
+    renderLayerPanel()
+    return
+  }
+
+  /** 形状拖拽收尾：按差异入栈历史并刷新图层面板 */
+  function onShapeDragMouseUp() {
+    const pending = S.shapeDrag.pending
+    if (pending) {
+      const cur = snapshotState({ metaOnly: true })
+      if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes) ||
+          JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
+        pushHistory(S.history, pending)
+        S.redoStack = []
+      }
+    }
+    S.shapeDrag = null
+    renderLayerPanel()
+    return
+  }
+
+  /** 画笔/橡皮一笔结束：收笔 */
+  function onStrokeDrawUp() {
+    endStroke()
+    return
+  }
+
+  /** 裁剪收尾：手柄/整框拖拽复位，否则按拉框结果确认或清除选区 */
+  function onCropDrawUp(pos) {
+    if (S.cropHandle) {
+      S.cropHandle = null
+      drawCropPreview()
+      updateCropInfo()
       return
     }
-
-    if (S.tool === 'crop') {
-      if (S.cropHandle) {
-        S.cropHandle = null
-        drawCropPreview()
-        updateCropInfo()
-        return
-      }
-      if (S.cropMoving) {
-        S.cropMoving = false
-        S.moveStart = null
-        drawCropPreview()
-        updateCropInfo()
-        return
-      }
-      const r = applyConstraintDrag(S.startX, S.startY, pos.x, pos.y)
-      if (r.w > 2 && r.h > 2) {
-        S.cropRect = { x: r.x, y: r.y, w: r.w, h: r.h }
-        showCropBar()
-        drawCropPreview()
-        updateCropInfo()
-      } else {
-        clearOverlay()
-      }
-    } else if (S.tool === 'rect' || S.tool === 'arrow' || S.tool === 'circle') {
-      const len = Math.hypot(pos.x - S.startX, pos.y - S.startY)
-      const ok = S.tool === 'rect' || S.tool === 'circle'
-        ? (Math.abs(pos.x - S.startX) > 2 && Math.abs(pos.y - S.startY) > 2)
-        : len > 3
-      if (ok) {
-        saveSnapshot()
-        const shape = {
-          id: 's' + Date.now() + Math.floor(Math.random() * 1000),
-          type: S.tool,
-          x1: S.startX, y1: S.startY,
-          x2: pos.x, y2: pos.y,
-          color: S.color,
-          lw: Math.max(2, S.brushSize),
-          fill: S.tool === 'rect' || S.tool === 'circle' ? !!S.rectFill : false,
-          opacity: 1,
-          visible: true,
-       locked: false,
-          z: ++S.zCounter
-        }
-        S.shapeLayers.push(shape)
-        S.selectedShapeId = shape.id
-      }
-      renderObjects()
-      renderLayerPanel()
+    if (S.cropMoving) {
+      S.cropMoving = false
+      S.moveStart = null
+      drawCropPreview()
+      updateCropInfo()
+      return
     }
+    const r = applyConstraintDrag(S.startX, S.startY, pos.x, pos.y)
+    if (r.w > 2 && r.h > 2) {
+      S.cropRect = { x: r.x, y: r.y, w: r.w, h: r.h }
+      showCropBar()
+      drawCropPreview()
+      updateCropInfo()
+    } else {
+      clearOverlay()
+    }
+  }
+
+  /** 矩形/圆/箭头拉框结束：尺寸达标则落成新形状并选中 */
+  function onShapeDrawUp(pos) {
+    const len = Math.hypot(pos.x - S.startX, pos.y - S.startY)
+    const ok = S.tool === 'rect' || S.tool === 'circle'
+      ? (Math.abs(pos.x - S.startX) > 2 && Math.abs(pos.y - S.startY) > 2)
+      : len > 3
+    if (ok) {
+      saveSnapshot()
+      const shape = {
+        id: 's' + Date.now() + Math.floor(Math.random() * 1000),
+        type: S.tool,
+        x1: S.startX, y1: S.startY,
+        x2: pos.x, y2: pos.y,
+        color: S.color,
+        lw: Math.max(2, S.brushSize),
+        fill: S.tool === 'rect' || S.tool === 'circle' ? !!S.rectFill : false,
+        opacity: 1,
+        visible: true,
+     locked: false,
+        z: ++S.zCounter
+      }
+      S.shapeLayers.push(shape)
+      S.selectedShapeId = shape.id
+    }
+    renderObjects()
+    renderLayerPanel()
   }
 
   // ============ 缩放 ============

@@ -1493,116 +1493,335 @@
     }
     S.isDrawing = true;
   }
+  var DRAW_MOVE_HANDLERS = {
+    brush: onBrushDrawMove,
+    eraser: onEraserDrawMove,
+    pen: onPenDrawMove,
+    rect: onShapeDrawMove,
+    arrow: onShapeDrawMove,
+    circle: onShapeDrawMove,
+    crop: onCropDrawMove
+  };
   function onMouseMove(e) {
     if (S.placingImage && S.placingHandle && S.placingStart) {
-      const pos2 = getPos(e);
-      resizePlacement(pos2);
-      drawPlacementPreview();
+      onPlacementDragMove(e);
       return;
     }
     if (S.placingImage) {
-      const pos2 = getPos(e);
-      const h = hitPlacementHandle(pos2);
-      if (h) S.drawCanvasCursor(h === "rotate" ? ROT_CURSOR : CROP_CURSORS[h] || "move");
-      else S.drawCanvasCursor(insidePlacementRect(pos2) ? "move" : "default");
+      onPlacementHoverMove(e);
       return;
     }
     if (S.panning && S.panStart) {
-      setView(
-        S.panStart.vx + (e.clientX - S.panStart.x),
-        S.panStart.vy + (e.clientY - S.panStart.y)
-      );
+      onPanMouseMove(e);
       return;
     }
     const pos0 = getPos(e);
     if (S.bitmapDrag) {
-      applyBitmapDrag(pos0);
-      renderObjects();
+      onBitmapDragMouseMove(pos0);
       return;
     }
     if (S.textDrag) {
-      const t = getSelectedText();
-      if (t) {
-        if (S.textDrag.mode === "move") {
-          const dx = pos0.x - S.textDrag.start.x;
-          const dy = pos0.y - S.textDrag.start.y;
-          t.x = clamp(S.textDrag.layer.x + dx, 0, Math.max(0, S.imgW - 4));
-          t.y = clamp(S.textDrag.layer.y + dy, 0, Math.max(0, S.imgH - 4));
-        } else if (S.textDrag.mode === "rotate") {
-          const st = S.textDrag;
-          const a1 = Math.atan2(pos0.y - st.cy, pos0.x - st.cx);
-          const a0 = Math.atan2(st.startY0 - st.cy, st.startX0 - st.cx);
-          let deg = st.rotation;
-          if (st.startX0 !== void 0) deg = st.rotation + (a1 - a0) * 180 / Math.PI;
-          if (S._shiftDown) deg = Math.round(deg / 15) * 15;
-          t.rotation = deg;
-        } else if (S.textDrag.mode === "scale") {
-          const dx = pos0.x - S.textDrag.anchor.x;
-          const dy = pos0.y - S.textDrag.anchor.y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          const f = d / Math.max(S.textDrag.d0, 1);
-          t.fontSize = clamp(Math.round(S.textDrag.fontSize * f), 8, 2e3);
-        }
-        renderObjects();
-      }
+      onTextDragMouseMove(pos0);
       return;
     }
     if (S.penDragPt >= 0) {
-      const penShape = getPenEditingShape();
-      if (penShape && penShape.pts[S.penDragPt]) {
-        penShape.pts[S.penDragPt].x = clamp(pos0.x, 0, S.imgW);
-        penShape.pts[S.penDragPt].y = clamp(pos0.y, 0, S.imgH);
-        renderObjects();
-      }
+      onPenEditDragMove(pos0);
       return;
     }
     if (S.shapeDrag) {
-      const sh = getSelectedShape();
-      if (sh) {
-        if (S.shapeDrag.mode === "move") {
-          const dx = pos0.x - S.shapeDrag.start.x;
-          const dy = pos0.y - S.shapeDrag.start.y;
-          const b = shapeBounds(S.shapeDrag.shape);
-          const cdx = clamp(dx, -b.x, Math.max(-b.x, S.imgW - (b.x + b.w)));
-          const cdy = clamp(dy, -b.y, Math.max(-b.y, S.imgH - (b.y + b.h)));
-          if (sh.type === "pen") {
-            sh.pts = (S.shapeDrag.shape.pts || []).map((p) => ({ x: p.x + cdx, y: p.y + cdy }));
-          } else {
-            sh.x1 = S.shapeDrag.shape.x1 + cdx;
-            sh.y1 = S.shapeDrag.shape.y1 + cdy;
-            sh.x2 = S.shapeDrag.shape.x2 + cdx;
-            sh.y2 = S.shapeDrag.shape.y2 + cdy;
-          }
-        } else {
-          applyShapeHandle(sh, S.shapeDrag.handle, pos0);
-        }
-        renderObjects();
-      }
+      onShapeDragMouseMove(pos0);
       return;
     }
     if (!S.isDrawing) return;
     const pos = pos0;
-    if (S.tool === "brush") {
-      strokeSegment(S.startX, S.startY, pos.x, pos.y);
-      S.startX = pos.x;
-      S.startY = pos.y;
-      drawToolRing(pos);
-    } else if (S.tool === "eraser") {
-      eraseSegment(S.startX, S.startY, pos.x, pos.y);
-      S.startX = pos.x;
-      S.startY = pos.y;
-      drawToolRing(pos);
-    } else if (S.tool === "pen") {
-      if (S.penPath) {
-        S.penPath.preview = pos;
-        const first = S.penPath.pts[0];
-        const nearStart = first && S.penPath.pts.length >= 3 && Math.hypot(pos.x - first.x, pos.y - first.y) <= Math.max(12 / S.zoom, S.brushSize * 1.5);
-        S.penPath.nearStart = !!nearStart;
-        renderObjects();
+    const handler = Object.prototype.hasOwnProperty.call(DRAW_MOVE_HANDLERS, S.tool) ? DRAW_MOVE_HANDLERS[S.tool] : null;
+    if (handler) handler(pos);
+  }
+  function onPlacementDragMove(e) {
+    const pos = getPos(e);
+    resizePlacement(pos);
+    drawPlacementPreview();
+    return;
+  }
+  function onPlacementHoverMove(e) {
+    const pos = getPos(e);
+    const h = hitPlacementHandle(pos);
+    if (h) S.drawCanvasCursor(h === "rotate" ? ROT_CURSOR : CROP_CURSORS[h] || "move");
+    else S.drawCanvasCursor(insidePlacementRect(pos) ? "move" : "default");
+    return;
+  }
+  function onPanMouseMove(e) {
+    setView(
+      S.panStart.vx + (e.clientX - S.panStart.x),
+      S.panStart.vy + (e.clientY - S.panStart.y)
+    );
+    return;
+  }
+  function onBitmapDragMouseMove(pos0) {
+    applyBitmapDrag(pos0);
+    renderObjects();
+    return;
+  }
+  function onTextDragMouseMove(pos0) {
+    const t = getSelectedText();
+    if (t) {
+      if (S.textDrag.mode === "move") {
+        const dx = pos0.x - S.textDrag.start.x;
+        const dy = pos0.y - S.textDrag.start.y;
+        t.x = clamp(S.textDrag.layer.x + dx, 0, Math.max(0, S.imgW - 4));
+        t.y = clamp(S.textDrag.layer.y + dy, 0, Math.max(0, S.imgH - 4));
+      } else if (S.textDrag.mode === "rotate") {
+        const st = S.textDrag;
+        const a1 = Math.atan2(pos0.y - st.cy, pos0.x - st.cx);
+        const a0 = Math.atan2(st.startY0 - st.cy, st.startX0 - st.cx);
+        let deg = st.rotation;
+        if (st.startX0 !== void 0) deg = st.rotation + (a1 - a0) * 180 / Math.PI;
+        if (S._shiftDown) deg = Math.round(deg / 15) * 15;
+        t.rotation = deg;
+      } else if (S.textDrag.mode === "scale") {
+        const dx = pos0.x - S.textDrag.anchor.x;
+        const dy = pos0.y - S.textDrag.anchor.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        const f = d / Math.max(S.textDrag.d0, 1);
+        t.fontSize = clamp(Math.round(S.textDrag.fontSize * f), 8, 2e3);
       }
-    } else if (S.tool === "rect" || S.tool === "arrow" || S.tool === "circle") {
-      const temp = {
-        id: "temp",
+      renderObjects();
+    }
+    return;
+  }
+  function onPenEditDragMove(pos0) {
+    const penShape = getPenEditingShape();
+    if (penShape && penShape.pts[S.penDragPt]) {
+      penShape.pts[S.penDragPt].x = clamp(pos0.x, 0, S.imgW);
+      penShape.pts[S.penDragPt].y = clamp(pos0.y, 0, S.imgH);
+      renderObjects();
+    }
+    return;
+  }
+  function onShapeDragMouseMove(pos0) {
+    const sh = getSelectedShape();
+    if (sh) {
+      if (S.shapeDrag.mode === "move") {
+        const dx = pos0.x - S.shapeDrag.start.x;
+        const dy = pos0.y - S.shapeDrag.start.y;
+        const b = shapeBounds(S.shapeDrag.shape);
+        const cdx = clamp(dx, -b.x, Math.max(-b.x, S.imgW - (b.x + b.w)));
+        const cdy = clamp(dy, -b.y, Math.max(-b.y, S.imgH - (b.y + b.h)));
+        if (sh.type === "pen") {
+          sh.pts = (S.shapeDrag.shape.pts || []).map((p) => ({ x: p.x + cdx, y: p.y + cdy }));
+        } else {
+          sh.x1 = S.shapeDrag.shape.x1 + cdx;
+          sh.y1 = S.shapeDrag.shape.y1 + cdy;
+          sh.x2 = S.shapeDrag.shape.x2 + cdx;
+          sh.y2 = S.shapeDrag.shape.y2 + cdy;
+        }
+      } else {
+        applyShapeHandle(sh, S.shapeDrag.handle, pos0);
+      }
+      renderObjects();
+    }
+    return;
+  }
+  function onBrushDrawMove(pos) {
+    strokeSegment(S.startX, S.startY, pos.x, pos.y);
+    S.startX = pos.x;
+    S.startY = pos.y;
+    drawToolRing(pos);
+  }
+  function onEraserDrawMove(pos) {
+    eraseSegment(S.startX, S.startY, pos.x, pos.y);
+    S.startX = pos.x;
+    S.startY = pos.y;
+    drawToolRing(pos);
+  }
+  function onPenDrawMove(pos) {
+    if (S.penPath) {
+      S.penPath.preview = pos;
+      const first = S.penPath.pts[0];
+      const nearStart = first && S.penPath.pts.length >= 3 && Math.hypot(pos.x - first.x, pos.y - first.y) <= Math.max(12 / S.zoom, S.brushSize * 1.5);
+      S.penPath.nearStart = !!nearStart;
+      renderObjects();
+    }
+  }
+  function onShapeDrawMove(pos) {
+    const temp = {
+      id: "temp",
+      type: S.tool,
+      x1: S.startX,
+      y1: S.startY,
+      x2: pos.x,
+      y2: pos.y,
+      color: S.color,
+      lw: Math.max(2, S.brushSize),
+      lineWidth: Math.max(2, S.brushSize),
+      fill: S.tool === "rect" || S.tool === "circle" ? !!S.rectFill : false,
+      opacity: 1,
+      visible: true
+    };
+    renderObjects(temp);
+  }
+  function onCropDrawMove(pos) {
+    if (S.cropHandle) {
+      resizeCropRect(pos);
+      drawCropPreview();
+      updateCropInfo();
+    } else if (S.cropMoving && S.moveStart) {
+      const dx = pos.x - S.moveStart.x;
+      const dy = pos.y - S.moveStart.y;
+      const r = S.moveStart.rect;
+      const nx = r.x + dx;
+      const ny = r.y + dy;
+      S.cropRect = { x: nx, y: ny, w: r.w, h: r.h };
+      drawCropPreview();
+      updateCropInfo();
+    } else {
+      drawCropPreview(S.startX, S.startY, pos.x, pos.y);
+      updateCropInfo();
+    }
+  }
+  var DRAW_UP_HANDLERS = {
+    brush: onStrokeDrawUp,
+    eraser: onStrokeDrawUp,
+    crop: onCropDrawUp,
+    rect: onShapeDrawUp,
+    arrow: onShapeDrawUp,
+    circle: onShapeDrawUp
+  };
+  function onMouseUp(e) {
+    if (S.penDragPt >= 0) {
+      onPenEditMouseUp();
+      return;
+    }
+    if (S.placingImage && S.placingHandle) {
+      onPlacementMouseUp();
+      return;
+    }
+    if (S.panning) {
+      onPanMouseUp();
+      return;
+    }
+    if (S.textDrag) {
+      onTextDragMouseUp();
+      return;
+    }
+    if (S.bitmapDrag) {
+      onBitmapDragMouseUp();
+      return;
+    }
+    if (S.shapeDrag) {
+      onShapeDragMouseUp();
+      return;
+    }
+    if (!S.isDrawing) return;
+    S.isDrawing = false;
+    const pos = getPos(e);
+    const handler = Object.prototype.hasOwnProperty.call(DRAW_UP_HANDLERS, S.tool) ? DRAW_UP_HANDLERS[S.tool] : null;
+    if (handler) handler(pos);
+  }
+  function onPenEditMouseUp() {
+    const penShape = getPenEditingShape();
+    const pending = S.penDragPending;
+    S.penDragPt = -1;
+    S.penDragPending = null;
+    S.penDragBase = null;
+    if (pending && penShape) {
+      const cur = snapshotState({ metaOnly: true });
+      if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes)) {
+        pushHistory(S.history, pending);
+        S.redoStack = [];
+      }
+    }
+    return;
+  }
+  function onPlacementMouseUp() {
+    S.placingHandle = null;
+    S.placingStart = null;
+    drawPlacementPreview();
+    return;
+  }
+  function onPanMouseUp() {
+    S.panning = false;
+    S.panStart = null;
+    updateCursor();
+    return;
+  }
+  function onTextDragMouseUp() {
+    const pending = S.textDrag.pending;
+    if (pending) {
+      const cur = snapshotState({ metaOnly: true });
+      if (JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
+        pushHistory(S.history, pending);
+        S.redoStack = [];
+      }
+    }
+    S.textDrag = null;
+    renderLayerPanel();
+    return;
+  }
+  function onBitmapDragMouseUp() {
+    const pending = S.bitmapDrag.pending;
+    if (pending) {
+      const cur = snapshotState({ metaOnly: true });
+      const before = pending.bitmaps.find((b) => b.id === S.selectedLayerId);
+      const after = cur.bitmaps.find((b) => b.id === S.selectedLayerId);
+      if (before && after && JSON.stringify([before.x, before.y, before.w, before.h]) !== JSON.stringify([after.x, after.y, after.w, after.h])) {
+        pushHistory(S.history, pending);
+        S.redoStack = [];
+      }
+    }
+    S.bitmapDrag = null;
+    renderObjects();
+    renderLayerPanel();
+    return;
+  }
+  function onShapeDragMouseUp() {
+    const pending = S.shapeDrag.pending;
+    if (pending) {
+      const cur = snapshotState({ metaOnly: true });
+      if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes) || JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
+        pushHistory(S.history, pending);
+        S.redoStack = [];
+      }
+    }
+    S.shapeDrag = null;
+    renderLayerPanel();
+    return;
+  }
+  function onStrokeDrawUp() {
+    endStroke();
+    return;
+  }
+  function onCropDrawUp(pos) {
+    if (S.cropHandle) {
+      S.cropHandle = null;
+      drawCropPreview();
+      updateCropInfo();
+      return;
+    }
+    if (S.cropMoving) {
+      S.cropMoving = false;
+      S.moveStart = null;
+      drawCropPreview();
+      updateCropInfo();
+      return;
+    }
+    const r = applyConstraintDrag(S.startX, S.startY, pos.x, pos.y);
+    if (r.w > 2 && r.h > 2) {
+      S.cropRect = { x: r.x, y: r.y, w: r.w, h: r.h };
+      showCropBar();
+      drawCropPreview();
+      updateCropInfo();
+    } else {
+      clearOverlay();
+    }
+  }
+  function onShapeDrawUp(pos) {
+    const len = Math.hypot(pos.x - S.startX, pos.y - S.startY);
+    const ok = S.tool === "rect" || S.tool === "circle" ? Math.abs(pos.x - S.startX) > 2 && Math.abs(pos.y - S.startY) > 2 : len > 3;
+    if (ok) {
+      saveSnapshot();
+      const shape = {
+        id: "s" + Date.now() + Math.floor(Math.random() * 1e3),
         type: S.tool,
         x1: S.startX,
         y1: S.startY,
@@ -1610,158 +1829,17 @@
         y2: pos.y,
         color: S.color,
         lw: Math.max(2, S.brushSize),
-        lineWidth: Math.max(2, S.brushSize),
         fill: S.tool === "rect" || S.tool === "circle" ? !!S.rectFill : false,
         opacity: 1,
-        visible: true
+        visible: true,
+        locked: false,
+        z: ++S.zCounter
       };
-      renderObjects(temp);
-    } else if (S.tool === "crop") {
-      if (S.cropHandle) {
-        resizeCropRect(pos);
-        drawCropPreview();
-        updateCropInfo();
-      } else if (S.cropMoving && S.moveStart) {
-        const dx = pos.x - S.moveStart.x;
-        const dy = pos.y - S.moveStart.y;
-        const r = S.moveStart.rect;
-        const nx = r.x + dx;
-        const ny = r.y + dy;
-        S.cropRect = { x: nx, y: ny, w: r.w, h: r.h };
-        drawCropPreview();
-        updateCropInfo();
-      } else {
-        drawCropPreview(S.startX, S.startY, pos.x, pos.y);
-        updateCropInfo();
-      }
+      S.shapeLayers.push(shape);
+      S.selectedShapeId = shape.id;
     }
-  }
-  function onMouseUp(e) {
-    if (S.penDragPt >= 0) {
-      const penShape = getPenEditingShape();
-      const pending = S.penDragPending;
-      S.penDragPt = -1;
-      S.penDragPending = null;
-      S.penDragBase = null;
-      if (pending && penShape) {
-        const cur = snapshotState({ metaOnly: true });
-        if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes)) {
-          pushHistory(S.history, pending);
-          S.redoStack = [];
-        }
-      }
-      return;
-    }
-    if (S.placingImage && S.placingHandle) {
-      S.placingHandle = null;
-      S.placingStart = null;
-      drawPlacementPreview();
-      return;
-    }
-    if (S.panning) {
-      S.panning = false;
-      S.panStart = null;
-      updateCursor();
-      return;
-    }
-    if (S.textDrag) {
-      const pending = S.textDrag.pending;
-      if (pending) {
-        const cur = snapshotState({ metaOnly: true });
-        if (JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
-          pushHistory(S.history, pending);
-          S.redoStack = [];
-        }
-      }
-      S.textDrag = null;
-      renderLayerPanel();
-      return;
-    }
-    if (S.bitmapDrag) {
-      const pending = S.bitmapDrag.pending;
-      if (pending) {
-        const cur = snapshotState({ metaOnly: true });
-        const before = pending.bitmaps.find((b) => b.id === S.selectedLayerId);
-        const after = cur.bitmaps.find((b) => b.id === S.selectedLayerId);
-        if (before && after && JSON.stringify([before.x, before.y, before.w, before.h]) !== JSON.stringify([after.x, after.y, after.w, after.h])) {
-          pushHistory(S.history, pending);
-          S.redoStack = [];
-        }
-      }
-      S.bitmapDrag = null;
-      renderObjects();
-      renderLayerPanel();
-      return;
-    }
-    if (S.shapeDrag) {
-      const pending = S.shapeDrag.pending;
-      if (pending) {
-        const cur = snapshotState({ metaOnly: true });
-        if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes) || JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
-          pushHistory(S.history, pending);
-          S.redoStack = [];
-        }
-      }
-      S.shapeDrag = null;
-      renderLayerPanel();
-      return;
-    }
-    if (!S.isDrawing) return;
-    S.isDrawing = false;
-    const pos = getPos(e);
-    if (S.tool === "brush" || S.tool === "eraser") {
-      endStroke();
-      return;
-    }
-    if (S.tool === "crop") {
-      if (S.cropHandle) {
-        S.cropHandle = null;
-        drawCropPreview();
-        updateCropInfo();
-        return;
-      }
-      if (S.cropMoving) {
-        S.cropMoving = false;
-        S.moveStart = null;
-        drawCropPreview();
-        updateCropInfo();
-        return;
-      }
-      const r = applyConstraintDrag(S.startX, S.startY, pos.x, pos.y);
-      if (r.w > 2 && r.h > 2) {
-        S.cropRect = { x: r.x, y: r.y, w: r.w, h: r.h };
-        showCropBar();
-        drawCropPreview();
-        updateCropInfo();
-      } else {
-        clearOverlay();
-      }
-    } else if (S.tool === "rect" || S.tool === "arrow" || S.tool === "circle") {
-      const len = Math.hypot(pos.x - S.startX, pos.y - S.startY);
-      const ok = S.tool === "rect" || S.tool === "circle" ? Math.abs(pos.x - S.startX) > 2 && Math.abs(pos.y - S.startY) > 2 : len > 3;
-      if (ok) {
-        saveSnapshot();
-        const shape = {
-          id: "s" + Date.now() + Math.floor(Math.random() * 1e3),
-          type: S.tool,
-          x1: S.startX,
-          y1: S.startY,
-          x2: pos.x,
-          y2: pos.y,
-          color: S.color,
-          lw: Math.max(2, S.brushSize),
-          fill: S.tool === "rect" || S.tool === "circle" ? !!S.rectFill : false,
-          opacity: 1,
-          visible: true,
-          locked: false,
-          z: ++S.zCounter
-        };
-        S.shapeLayers.push(shape);
-        S.selectedShapeId = shape.id;
-      }
-      renderObjects();
-      renderLayerPanel();
-    }
+    renderObjects();
+    renderLayerPanel();
   }
   function onWheel(e) {
     if (!S.open) return;
