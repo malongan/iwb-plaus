@@ -1,4 +1,54 @@
 (() => {
+  // iwb-cutout-extension/src/shared/image-math.js
+  function hexToRgb(hex) {
+    const h = String(hex || "").replace("#", "");
+    const v = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+    return {
+      r: parseInt(v.slice(0, 2), 16) || 0,
+      g: parseInt(v.slice(2, 4), 16) || 0,
+      b: parseInt(v.slice(4, 6), 16) || 0
+    };
+  }
+  function rgbToHex(r, g, b) {
+    const to = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
+    return `#${to(r)}${to(g)}${to(b)}`;
+  }
+  function parseRatio(str) {
+    if (str === "free" || !str) return 0;
+    const parts = String(str).split(":");
+    if (parts.length === 2) {
+      const w = parseFloat(parts[0]);
+      const h = parseFloat(parts[1]);
+      if (w > 0 && h > 0) return w / h;
+    }
+    return 0;
+  }
+  function fitRect(srcW, srcH, boxW, boxH, ratio = 1) {
+    if (!(srcW > 0) || !(srcH > 0) || !(boxW > 0) || !(boxH > 0)) {
+      return { x: 0, y: 0, w: 0, h: 0, scale: 0 };
+    }
+    const r = Math.max(0.01, Math.min(1, ratio));
+    const maxLen = Math.min(boxW, boxH) * r;
+    const scale = Math.min(maxLen / srcW, maxLen / srcH);
+    const w = srcW * scale;
+    const h = srcH * scale;
+    return { x: (boxW - w) / 2, y: (boxH - h) / 2, w, h, scale };
+  }
+
+  // iwb-cutout-extension/src/shared/layer-logic.js
+  function isDrawableLayer(layer) {
+    return !!layer && layer.id !== "base" && !layer.image;
+  }
+  function restorePath(layer) {
+    if (!layer) return "pixels";
+    const sourceCanvas = isDrawableLayer(layer) ? null : layer.sourceCanvas;
+    if (layer.transformable && (layer.image || sourceCanvas)) return "redraw";
+    return "pixels";
+  }
+  function needsPixelSnapshot(layer) {
+    return restorePath(layer) === "pixels";
+  }
+
   // iwb-cutout-extension/src/editor.js
   (function() {
     "use strict";
@@ -407,9 +457,6 @@
         }
       }
       return hit;
-    }
-    function isDrawableLayer(layer) {
-      return !!layer && layer.id !== "base" && !layer.image;
     }
     function layerBounds(layer) {
       if (!layer || !layer.ctx || !layer.canvas) return null;
@@ -1496,12 +1543,20 @@
         y: (e.clientY - rect.top) / Math.max(scale, 1e-4) - pad
       };
     }
-    function snapshotState() {
+    const snapshotStats = { snapshots: 0, getImageDataCalls: 0, bytesWritten: 0 };
+    function snapshotState(opts) {
+      const metaOnly = !!(opts && opts.metaOnly);
       const bitmaps = S.layers.map((layer) => {
         let data = null;
-        try {
-          data = layer.ctx.getImageData(0, 0, S.imgW, S.imgH);
-        } catch (e) {
+        if (!metaOnly && needsPixelSnapshot(layer)) {
+          try {
+            data = layer.ctx.getImageData(0, 0, S.imgW, S.imgH);
+          } catch (e) {
+          }
+          if (data) {
+            snapshotStats.getImageDataCalls++;
+            snapshotStats.bytesWritten += data.data.byteLength;
+          }
         }
         return {
           id: layer.id,
@@ -1515,6 +1570,7 @@
           locked: !!layer.locked
         };
       });
+      snapshotStats.snapshots++;
       return {
         bitmaps,
         texts: JSON.parse(JSON.stringify(S.textLayers)),
@@ -1522,9 +1578,32 @@
         layerOrder: S.layers.map((l) => ({ id: l.id, name: l.name, z: l.z, opacity: l.opacity, visible: l.visible, locked: !!l.locked, x: l.x, y: l.y, w: l.w, h: l.h }))
       };
     }
+    const HISTORY_MAX_ENTRIES = 50;
+    const HISTORY_MAX_BYTES = 128 * 1024 * 1024;
+    function stateBytes(state) {
+      let n = 0;
+      if (state && state.bitmaps) {
+        for (const b of state.bitmaps) {
+          if (b.data && b.data.data) n += b.data.data.byteLength;
+        }
+      }
+      if (state) {
+        n += state.texts ? JSON.stringify(state.texts).length * 2 : 0;
+        n += state.shapes ? JSON.stringify(state.shapes).length * 2 : 0;
+      }
+      return n;
+    }
+    function pushHistory(stack, state) {
+      state.__bytes = stateBytes(state);
+      stack.push(state);
+      let total = stack.reduce((sum, s) => sum + (s.__bytes || 0), 0);
+      while (stack.length > 1 && (stack.length > HISTORY_MAX_ENTRIES || total > HISTORY_MAX_BYTES)) {
+        total -= stack.shift().__bytes || 0;
+      }
+      return state;
+    }
     function saveSnapshot() {
-      S.history.push(snapshotState());
-      if (S.history.length > 50) S.history.shift();
+      pushHistory(S.history, snapshotState());
       S.redoStack = [];
     }
     function restoreState(state) {
@@ -1551,7 +1630,7 @@
               layer.h = S.imgH;
               layer._bounds = void 0;
             }
-            if (layer.transformable && (layer.image || layer.sourceCanvas)) {
+            if (restorePath(layer) === "redraw") {
               redrawBitmapLayer(layer);
             } else if (bm.data) {
               try {
@@ -1589,14 +1668,14 @@
       if (S.placingImage) return;
       if (S.isDrawing || S.textDrag || S.shapeDrag) return;
       if (S.history.length === 0) return;
-      S.redoStack.push(snapshotState());
+      pushHistory(S.redoStack, snapshotState());
       restoreState(S.history.pop());
     }
     function redo() {
       if (S.placingImage) return;
       if (S.isDrawing || S.textDrag || S.shapeDrag) return;
       if (S.redoStack.length === 0) return;
-      S.history.push(snapshotState());
+      pushHistory(S.history, snapshotState());
       restoreState(S.redoStack.pop());
     }
     function resetDraw() {
@@ -1635,18 +1714,6 @@
       setupCanvas(S.originalImage);
       resetDraw();
       updateAllUI();
-    }
-    function hexToRgb(hex) {
-      const h = hex.replace("#", "");
-      const v = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
-      return {
-        r: parseInt(v.slice(0, 2), 16) || 0,
-        g: parseInt(v.slice(2, 4), 16) || 0,
-        b: parseInt(v.slice(4, 6), 16) || 0
-      };
-    }
-    function rgbToHex(r, g, b) {
-      return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
     }
     let brushStampCache = { key: "", canvas: null };
     function getBrushStamp(size, color, hardness) {
@@ -1977,16 +2044,6 @@
       }
       renderObjects();
       renderLayerPanel();
-    }
-    function parseRatio(str) {
-      if (str === "free" || !str) return 0;
-      const parts = str.split(":");
-      if (parts.length === 2) {
-        const w = parseFloat(parts[0]);
-        const h = parseFloat(parts[1]);
-        if (w > 0 && h > 0) return w / h;
-      }
-      return 0;
     }
     function setConstraint(type, ratio, sizeW, sizeH) {
       S.cropConstraint = { type, ratio: ratio || 0, sizeW: sizeW || 0, sizeH: sizeH || 0 };
@@ -3317,10 +3374,9 @@
         S.penDragPending = null;
         S.penDragBase = null;
         if (pending && penShape) {
-          const cur = snapshotState();
+          const cur = snapshotState({ metaOnly: true });
           if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes)) {
-            S.history.push(pending);
-            if (S.history.length > 50) S.history.shift();
+            pushHistory(S.history, pending);
             S.redoStack = [];
           }
         }
@@ -3341,10 +3397,9 @@
       if (S.textDrag) {
         const pending = S.textDrag.pending;
         if (pending) {
-          const cur = snapshotState();
+          const cur = snapshotState({ metaOnly: true });
           if (JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
-            S.history.push(pending);
-            if (S.history.length > 50) S.history.shift();
+            pushHistory(S.history, pending);
             S.redoStack = [];
           }
         }
@@ -3355,12 +3410,11 @@
       if (S.bitmapDrag) {
         const pending = S.bitmapDrag.pending;
         if (pending) {
-          const cur = snapshotState();
+          const cur = snapshotState({ metaOnly: true });
           const before = pending.bitmaps.find((b) => b.id === S.selectedLayerId);
           const after = cur.bitmaps.find((b) => b.id === S.selectedLayerId);
           if (before && after && JSON.stringify([before.x, before.y, before.w, before.h]) !== JSON.stringify([after.x, after.y, after.w, after.h])) {
-            S.history.push(pending);
-            if (S.history.length > 50) S.history.shift();
+            pushHistory(S.history, pending);
             S.redoStack = [];
           }
         }
@@ -3372,10 +3426,9 @@
       if (S.shapeDrag) {
         const pending = S.shapeDrag.pending;
         if (pending) {
-          const cur = snapshotState();
+          const cur = snapshotState({ metaOnly: true });
           if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes) || JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
-            S.history.push(pending);
-            if (S.history.length > 50) S.history.shift();
+            pushHistory(S.history, pending);
             S.redoStack = [];
           }
         }
@@ -4119,7 +4172,26 @@
         updateCursor();
       }
     }
-    window.__iwbEditor = { open, close };
+    window.__iwbEditor = {
+      open,
+      close,
+      /**
+       * 快照/历史开销观测口（性能回归与手测用）：
+       *   history / redo           当前栈深度与占用字节
+       *   snapshots                快照次数
+       *   getImageDataCalls        累计全幅像素读取次数（优化前后最直观的对比指标）
+       *   bytesWritten             累计拍摄的像素字节数
+       */
+      __stats: () => ({
+        history: S.history.length,
+        historyBytes: S.history.reduce((n, s) => n + (s.__bytes || 0), 0),
+        redo: S.redoStack.length,
+        redoBytes: S.redoStack.reduce((n, s) => n + (s.__bytes || 0), 0),
+        maxEntries: HISTORY_MAX_ENTRIES,
+        maxBytes: HISTORY_MAX_BYTES,
+        ...snapshotStats
+      })
+    };
   })();
 
   // iwb-cutout-extension/src/shared/config.js
@@ -4291,19 +4363,6 @@
   }
   function probeProblems(results) {
     return results.filter((r) => !r.ok && (r.level === "error" || r.level === "warn"));
-  }
-
-  // iwb-cutout-extension/src/shared/image-math.js
-  function fitRect(srcW, srcH, boxW, boxH, ratio = 1) {
-    if (!(srcW > 0) || !(srcH > 0) || !(boxW > 0) || !(boxH > 0)) {
-      return { x: 0, y: 0, w: 0, h: 0, scale: 0 };
-    }
-    const r = Math.max(0.01, Math.min(1, ratio));
-    const maxLen = Math.min(boxW, boxH) * r;
-    const scale = Math.min(maxLen / srcW, maxLen / srcH);
-    const w = srcW * scale;
-    const h = srcH * scale;
-    return { x: (boxW - w) / 2, y: (boxH - h) / 2, w, h, scale };
   }
 
   // iwb-cutout-extension/src/content.js

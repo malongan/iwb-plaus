@@ -15,6 +15,9 @@
  * - strokeCanvas: 笔划预览层（一笔结束后合成进活跃图层）
  * - overlayCanvas: 选中框/裁剪遮罩/笔刷预览
  */
+import { hexToRgb, rgbToHex, parseRatio } from './shared/image-math.js'
+import { isDrawableLayer, restorePath, needsPixelSnapshot } from './shared/layer-logic.js'
+
 (function () {
   'use strict'
 
@@ -422,11 +425,8 @@
    }
 
 
-   /** 绘制类图层（画笔标注 / 空白图层）：控制框应只包住非透明内容 */
-   // 绘制层：画笔标注层与空白图层性质一致（非原图、非图片的光栅层）
-   function isDrawableLayer(layer) {
-     return !!layer && layer.id !== 'base' && !layer.image
-   }
+   // isDrawableLayer / restorePath / needsPixelSnapshot 统一由 shared/layer-logic.js 提供
+   // （快照端与恢复端必须共用同一判定，可单测守护）
    /** 内容包围盒（非透明像素范围），带缓存；step=2 降低扫描开销 */
    function layerBounds(layer) {
      if (!layer || !layer.ctx || !layer.canvas) return null
@@ -1562,11 +1562,30 @@ function setActiveLayer(id) {
 
   // ============ 历史快照（所有位图图层 + 矢量对象） ============
 
-  /** 捕获当前完整状态 */
-  function snapshotState() {
+  // 快照开销统计：控制台 window.__iwbEditor.__stats() 可读
+  const snapshotStats = { snapshots: 0, getImageDataCalls: 0, bytesWritten: 0 }
+
+  // restorePath()（快照端"要不要拍"与恢复端"要不要读"的共同判定）
+  // 由 shared/layer-logic.js 提供，并有单元测试守护两边一致这条不变量。
+
+  /**
+   * 捕获当前状态
+   * @param {{metaOnly?: boolean}} [opts]
+   *   metaOnly=true：只取几何/矢量/图层元数据。拖拽结束时仅用于"有没有变化"的比对，
+   *                  比对从不读像素，此前却照样做全量 getImageData —— 纯浪费。
+   *   默认：只为 needsPixelSnapshot() 为 true 的图层拍像素，可重绘图层只存几何。
+   */
+  function snapshotState(opts) {
+    const metaOnly = !!(opts && opts.metaOnly)
     const bitmaps = S.layers.map(layer => {
       let data = null
-      try { data = layer.ctx.getImageData(0, 0, S.imgW, S.imgH) } catch (e) { /* ignore */ }
+      if (!metaOnly && needsPixelSnapshot(layer)) {
+        try { data = layer.ctx.getImageData(0, 0, S.imgW, S.imgH) } catch (e) { /* ignore */ }
+        if (data) {
+          snapshotStats.getImageDataCalls++
+          snapshotStats.bytesWritten += data.data.byteLength
+        }
+      }
       return {
          id: layer.id,
          data,
@@ -1576,6 +1595,7 @@ function setActiveLayer(id) {
          locked: !!layer.locked
        }
     })
+    snapshotStats.snapshots++
     return {
       bitmaps,
       texts: JSON.parse(JSON.stringify(S.textLayers)),
@@ -1584,10 +1604,39 @@ function setActiveLayer(id) {
     }
   }
 
+  // 历史既限条数也限字节：大图下"固定 50 条全量像素"峰值可超过 1GB
+  const HISTORY_MAX_ENTRIES = 50
+  const HISTORY_MAX_BYTES = 128 * 1024 * 1024
+
+  /** 一条历史快照的大致内存占用（像素为主，矢量用序列化长度估算） */
+  function stateBytes(state) {
+    let n = 0
+    if (state && state.bitmaps) {
+      for (const b of state.bitmaps) {
+        if (b.data && b.data.data) n += b.data.data.byteLength
+      }
+    }
+    if (state) {
+      n += state.texts ? JSON.stringify(state.texts).length * 2 : 0
+      n += state.shapes ? JSON.stringify(state.shapes).length * 2 : 0
+    }
+    return n
+  }
+
+  /** 压入栈并执行"条数 + 字节"双预算，超出丢最旧 */
+  function pushHistory(stack, state) {
+    state.__bytes = stateBytes(state)
+    stack.push(state)
+    let total = stack.reduce((sum, s) => sum + (s.__bytes || 0), 0)
+    while (stack.length > 1 && (stack.length > HISTORY_MAX_ENTRIES || total > HISTORY_MAX_BYTES)) {
+      total -= stack.shift().__bytes || 0
+    }
+    return state
+  }
+
   /** 操作前调用：压入历史，清空重做栈 */
   function saveSnapshot() {
-    S.history.push(snapshotState())
-    if (S.history.length > 50) S.history.shift()
+    pushHistory(S.history, snapshotState())
     S.redoStack = []
   }
 
@@ -1616,7 +1665,8 @@ function setActiveLayer(id) {
             layer.h = S.imgH
             layer._bounds = undefined
           }
-          if (layer.transformable && (layer.image || layer.sourceCanvas)) {
+          // 快照端用 restorePath() 决定是否拍像素，这里用同一判定决定是否读像素
+          if (restorePath(layer) === 'redraw') {
             redrawBitmapLayer(layer)
           } else if (bm.data) {
             try {
@@ -1648,7 +1698,7 @@ function setActiveLayer(id) {
     if (S.placingImage) return
     if (S.isDrawing || S.textDrag || S.shapeDrag) return
     if (S.history.length === 0) return
-    S.redoStack.push(snapshotState())
+    pushHistory(S.redoStack, snapshotState())
     restoreState(S.history.pop())
   }
 
@@ -1656,7 +1706,7 @@ function setActiveLayer(id) {
     if (S.placingImage) return
     if (S.isDrawing || S.textDrag || S.shapeDrag) return
     if (S.redoStack.length === 0) return
-    S.history.push(snapshotState())
+    pushHistory(S.history, snapshotState())
     restoreState(S.redoStack.pop())
   }
 
@@ -1702,20 +1752,7 @@ function setActiveLayer(id) {
   }
 
   // ============ 绘制工具 ============
-
-  function hexToRgb(hex) {
-    const h = hex.replace('#', '')
-    const v = h.length === 3 ? h.split('').map(c => c + c).join('') : h
-    return {
-      r: parseInt(v.slice(0, 2), 16) || 0,
-      g: parseInt(v.slice(2, 4), 16) || 0,
-      b: parseInt(v.slice(4, 6), 16) || 0
-    }
-  }
-
-  function rgbToHex(r, g, b) {
-    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
-  }
+  // hexToRgb / rgbToHex / parseRatio 统一由 shared/image-math.js 提供（可单测）
 
   let brushStampCache = { key: '', canvas: null }
 
@@ -2070,18 +2107,7 @@ function setActiveLayer(id) {
   }
 
   // ============ 裁剪 ============
-
-  /** 解析比例字符串为数值 (w/h) */
-  function parseRatio(str) {
-    if (str === 'free' || !str) return 0
-    const parts = str.split(':')
-    if (parts.length === 2) {
-      const w = parseFloat(parts[0])
-      const h = parseFloat(parts[1])
-      if (w > 0 && h > 0) return w / h
-    }
-    return 0
-  }
+  // parseRatio 由 shared/image-math.js 提供（可单测）
 
   /** 设置裁剪约束 */
   function setConstraint(type, ratio, sizeW, sizeH) {
@@ -3391,10 +3417,9 @@ function setActiveLayer(id) {
       S.penDragPending = null
       S.penDragBase = null
       if (pending && penShape) {
-        const cur = snapshotState()
+        const cur = snapshotState({ metaOnly: true })
         if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes)) {
-          S.history.push(pending)
-          if (S.history.length > 50) S.history.shift()
+          pushHistory(S.history, pending)
           S.redoStack = []
         }
       }
@@ -3416,10 +3441,9 @@ function setActiveLayer(id) {
     if (S.textDrag) {
       const pending = S.textDrag.pending
       if (pending) {
-        const cur = snapshotState()
+        const cur = snapshotState({ metaOnly: true })
         if (JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
-          S.history.push(pending)
-          if (S.history.length > 50) S.history.shift()
+          pushHistory(S.history, pending)
           S.redoStack = []
         }
       }
@@ -3430,12 +3454,11 @@ function setActiveLayer(id) {
     if (S.bitmapDrag) {
       const pending = S.bitmapDrag.pending
       if (pending) {
-        const cur = snapshotState()
+        const cur = snapshotState({ metaOnly: true })
         const before = pending.bitmaps.find(b => b.id === S.selectedLayerId)
         const after = cur.bitmaps.find(b => b.id === S.selectedLayerId)
         if (before && after && JSON.stringify([before.x, before.y, before.w, before.h]) !== JSON.stringify([after.x, after.y, after.w, after.h])) {
-          S.history.push(pending)
-          if (S.history.length > 50) S.history.shift()
+          pushHistory(S.history, pending)
           S.redoStack = []
         }
       }
@@ -3447,11 +3470,10 @@ function setActiveLayer(id) {
     if (S.shapeDrag) {
       const pending = S.shapeDrag.pending
       if (pending) {
-        const cur = snapshotState()
+        const cur = snapshotState({ metaOnly: true })
         if (JSON.stringify(cur.shapes) !== JSON.stringify(pending.shapes) ||
             JSON.stringify(cur.texts) !== JSON.stringify(pending.texts)) {
-          S.history.push(pending)
-          if (S.history.length > 50) S.history.shift()
+          pushHistory(S.history, pending)
           S.redoStack = []
         }
       }
@@ -4110,5 +4132,24 @@ function setActiveLayer(id) {
   }
 
   // ============ 暴露接口 ============
-  window.__iwbEditor = { open, close }
+  window.__iwbEditor = {
+    open,
+    close,
+    /**
+     * 快照/历史开销观测口（性能回归与手测用）：
+     *   history / redo           当前栈深度与占用字节
+     *   snapshots                快照次数
+     *   getImageDataCalls        累计全幅像素读取次数（优化前后最直观的对比指标）
+     *   bytesWritten             累计拍摄的像素字节数
+     */
+    __stats: () => ({
+      history: S.history.length,
+      historyBytes: S.history.reduce((n, s) => n + (s.__bytes || 0), 0),
+      redo: S.redoStack.length,
+      redoBytes: S.redoStack.reduce((n, s) => n + (s.__bytes || 0), 0),
+      maxEntries: HISTORY_MAX_ENTRIES,
+      maxBytes: HISTORY_MAX_BYTES,
+      ...snapshotStats
+    })
+  }
 })()
