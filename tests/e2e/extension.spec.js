@@ -254,3 +254,119 @@ test('编辑器行为：画笔上色 → 撤销 → 重做 → 导出（像素�
 
   await page.close()
 })
+
+/**
+ * 交互覆盖面扩展：onMouseDown/onMouseMove/onMouseUp 承载了所有工具的交互，
+ * 在拆它们之前，先把钢笔 / 文字 / 矩形 / 裁剪四条主路径都变成像素级用例。
+ */
+
+/**
+ * 矢量对象的非透明像素数。
+ * 注意：矢量对象（文字/矩形/圆形/箭头/钢笔）不是画在 .iwb-editor-text 上，
+ * 而是每个对象各占一张 .iwb-editor-vec-canvas（layers.js 的 vecCanvasFor）。
+ */
+async function vectorPixelsInEditor(page) {
+  return page.evaluate(() => {
+    let n = 0
+    for (const c of document.querySelectorAll('.iwb-editor-vec-canvas')) {
+      if (!c.width || !c.height) continue
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 8) n++
+    }
+    return n
+  })
+}
+
+/** 第一个位图图层的画布尺寸（裁剪后应变小） */
+async function layerCanvasSize(page) {
+  return page.evaluate(() => {
+    const c = document.querySelector('.iwb-editor-layer-canvas')
+    return c ? { w: c.width, h: c.height } : null
+  })
+}
+
+/** 打开编辑器并返回图层 canvas 中心坐标 */
+async function openEditorCentered(page) {
+  await page.locator('#iwb-cutout-toolbar .iwb-editor-btn-icon').click()
+  await expect(page.locator('#iwb-editor-overlay')).toBeVisible({ timeout: 15_000 })
+  const box = await page.locator('.iwb-editor-layer-canvas').first().boundingBox()
+  return { cx: box.x + box.width / 2, cy: box.y + box.height / 2 }
+}
+
+test('编辑器行为：钢笔画三角形 → Enter 提交 → 撤销/重做（像素级）', async () => {
+  const page = await openFixture()
+  const { cx, cy } = await openEditorCentered(page)
+
+  await page.locator('.iwb-editor-tool[data-tool="pen"]').click()
+  await page.mouse.click(cx - 60, cy - 40)
+  await page.mouse.click(cx + 70, cy - 10)
+  await page.mouse.click(cx + 10, cy + 60)
+  expect(await vectorPixelsInEditor(page)).toBe(0) // 未提交前不落矢量层
+
+  await page.keyboard.press('Enter')
+  await expect.poll(() => vectorPixelsInEditor(page), { timeout: 5_000 }).toBeGreaterThan(0)
+
+  await page.locator('.iwb-editor-action[data-action="undo"]').click()
+  await expect.poll(() => vectorPixelsInEditor(page), { timeout: 5_000 }).toBe(0)
+
+  await page.locator('.iwb-editor-action[data-action="redo"]').click()
+  await expect.poll(() => vectorPixelsInEditor(page), { timeout: 5_000 }).toBeGreaterThan(0)
+  await page.close()
+})
+
+test('编辑器行为：文字输入 → 提交后落在矢量层（像素级）', async () => {
+  const page = await openFixture()
+  const { cx, cy } = await openEditorCentered(page)
+
+  await page.locator('.iwb-editor-tool[data-tool="text"]').click()
+  await page.mouse.click(cx - 40, cy)
+  const input = page.locator('.iwb-editor-text-input')
+  await expect(input).toBeVisible()
+  await input.fill('AB')
+  await page.keyboard.press('Enter')
+
+  await expect.poll(() => vectorPixelsInEditor(page), { timeout: 5_000 }).toBeGreaterThan(0)
+  await expect(input).toBeHidden()
+  await page.close()
+})
+
+test('编辑器行为：矩形拖拽绘制 → 实心开关 → 撤销（像素级）', async () => {
+  const page = await openFixture()
+  const { cx, cy } = await openEditorCentered(page)
+
+  await page.locator('.iwb-editor-tool[data-tool="rect"]').click()
+  await page.mouse.move(cx - 45, cy - 30)
+  await page.mouse.down()
+  await page.mouse.move(cx + 45, cy + 30, { steps: 6 })
+  await page.mouse.up()
+  await expect.poll(() => vectorPixelsInEditor(page), { timeout: 5_000 }).toBeGreaterThan(0)
+
+  // 切实心：填充后像素数应当增加
+  const strokeCount = await vectorPixelsInEditor(page)
+  await page.locator('.iwb-editor-fill-btn[data-action="toggleFill"]').click()
+  await expect.poll(() => vectorPixelsInEditor(page), { timeout: 5_000 }).toBeGreaterThan(strokeCount)
+
+  await page.locator('.iwb-editor-action[data-action="undo"]').click()
+  await page.locator('.iwb-editor-action[data-action="undo"]').click()
+  await expect.poll(() => vectorPixelsInEditor(page), { timeout: 5_000 }).toBe(0)
+  await page.close()
+})
+
+test('编辑器行为：裁剪框拖拽 → 确认后图层尺寸真的变小（像素级）', async () => {
+  const page = await openFixture()
+  const { cx, cy } = await openEditorCentered(page)
+  const before = await layerCanvasSize(page)
+  expect(before).toEqual({ w: 64, h: 64 })
+
+  await page.locator('.iwb-editor-tool[data-tool="crop"]').click()
+  await page.mouse.move(cx - 20, cy - 10)
+  await page.mouse.down()
+  await page.mouse.move(cx + 20, cy + 10, { steps: 6 })
+  await page.mouse.up()
+
+  await page.locator('.iwb-editor-crop-confirm[data-action="confirmCrop"]').click()
+  const after = await layerCanvasSize(page)
+  expect(after.w).toBeLessThan(before.w)
+  expect(after.h).toBeLessThan(before.h)
+  await page.close()
+})

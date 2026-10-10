@@ -224,7 +224,7 @@ iwb-plaus/                 # 仓库根（构建与测试工具链）
 ├── vitest.config.js       # Vitest 配置
 ├── playwright.config.js   # Playwright 配置（扩展 e2e）
 ├── .prettierrc            # 格式化风格（与现有代码一致：无分号 / 单引号）
-├── tests/                 # 单测 tests/unit/**（75 项）+ 扩展 e2e tests/e2e/**（9 项）
+├── tests/                 # 单测 tests/unit/**（75 项）+ 扩展 e2e tests/e2e/**（13 项）
 ├── .gitignore             # 忽略 node_modules/、build/、test-results/、coverage/ 等
 └── PLAN.md                # 修订计划与执行状态
 ```
