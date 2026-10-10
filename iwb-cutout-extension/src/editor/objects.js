@@ -336,7 +336,6 @@ import { isDrawableLayer } from '../shared/layer-logic.js'
     const octx = S.overlayCtx
     const b = shapeBounds(s)
     const rot = s.rotation || 0
-    const cx = b.x + b.w / 2, cy = b.y + b.h / 2
     octx.save()
     octx.strokeStyle = '#e8a735'
     octx.lineWidth = 1.5 / S.zoom

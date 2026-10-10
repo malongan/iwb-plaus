@@ -188,7 +188,6 @@ import { getSelectedShape, getSelectedText, renderObjects, shapeBounds, textBoun
   export function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 
   // ============ 旋转辅助 ============
-  const ROT_HANDLE_OFFSET = 28 // 旋转手柄相对上边中点的距离（图片坐标）
   export function rotPt(px, py, cx, cy, deg) {
     if (!deg) return [px, py]
     const a = deg * Math.PI / 180, sn = Math.sin(a), cs = Math.cos(a)

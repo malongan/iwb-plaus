@@ -417,7 +417,6 @@
   function hitBitmapHandle(pos) {
     const layer = S.layers.find((l) => l.id === S.selectedLayerId && (l.transformable || isDrawableLayer(l)));
     if (!layer || layer.visible === false) return null;
-    const drawable = isDrawableLayer(layer);
     const box = layerFrame(layer);
     if (!(box.w > 0 && box.h > 0)) return null;
     const rot = layer.rotation || 0;
@@ -1908,6 +1907,19 @@
       b.disabled = !hasSel;
     });
   }
+  var warnedMissing = /* @__PURE__ */ new Set();
+  function bindIf(selector, type, handler, root) {
+    const el = (root || runtime.el).querySelector(selector);
+    if (!el) {
+      if (!warnedMissing.has(selector)) {
+        warnedMissing.add(selector);
+        console.warn("[IWB\u7F16\u8F91\u5668] \u672A\u627E\u5230\u5143\u7D20\uFF0C\u8DF3\u8FC7\u7ED1\u5B9A\uFF1A" + selector);
+      }
+      return null;
+    }
+    el.addEventListener(type, handler);
+    return el;
+  }
   function bindEvents() {
     bindToolButtons();
     bindColorPanel();
@@ -2041,8 +2053,8 @@
         if (w > 0 && h > 0) setConstraint("size", w / h, w, h);
       }
     });
-    runtime.el.querySelector('[data-action="applySize"]').addEventListener("mousedown", (e) => e.stopPropagation());
-    runtime.el.querySelector('[data-action="applySize"]').addEventListener("click", () => {
+    bindIf('[data-action="applySize"]', "mousedown", (e) => e.stopPropagation());
+    bindIf('[data-action="applySize"]', "click", () => {
       const w = parseInt(runtime.el.querySelector(".iwb-editor-size-w").value, 10);
       const h = parseInt(runtime.el.querySelector(".iwb-editor-size-h").value, 10);
       if (w > 0 && h > 0) {
@@ -2065,7 +2077,7 @@
   function bindFillToggle() {
     const fillBtn = runtime.el.querySelector('[data-action="toggleFill"]');
     if (fillBtn) fillBtn.addEventListener("mousedown", (e) => e.stopPropagation());
-    fillBtn.addEventListener("click", () => {
+    fillBtn && fillBtn.addEventListener("click", () => {
       S.rectFill = !S.rectFill;
       updateFillUI();
       const sh = getSelectedShape();
@@ -2107,8 +2119,8 @@
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
       btn.addEventListener("click", () => syncBrushSize(btn.dataset.brushSize, false));
     });
-    slider.addEventListener("input", () => syncBrushSize(slider.value, true));
-    slider.addEventListener("change", () => syncBrushSize(slider.value, false));
+    slider && slider.addEventListener("input", () => syncBrushSize(slider.value, true));
+    slider && slider.addEventListener("change", () => syncBrushSize(slider.value, false));
     if (brushNum) {
       brushNum.addEventListener("mousedown", (e) => e.stopPropagation());
       brushNum.addEventListener("input", () => {
@@ -2123,27 +2135,27 @@
   }
   function bindBrushParams() {
     const hardnessSlider = runtime.el.querySelector(".iwb-editor-brush-hardness");
-    hardnessSlider.addEventListener("input", () => {
+    hardnessSlider && hardnessSlider.addEventListener("input", () => {
       S.brushHardness = parseInt(hardnessSlider.value, 10);
       runtime.el.querySelector(".iwb-editor-brush-hardness-val").textContent = S.brushHardness;
     });
     const opacitySlider = runtime.el.querySelector(".iwb-editor-brush-opacity");
-    opacitySlider.addEventListener("input", () => {
+    opacitySlider && opacitySlider.addEventListener("input", () => {
       S.brushOpacity = parseInt(opacitySlider.value, 10) / 100;
       runtime.el.querySelector(".iwb-editor-brush-opacity-val").textContent = opacitySlider.value + "%";
       if (S.strokeCanvas) S.strokeCanvas.style.opacity = S.brushOpacity;
     });
   }
   function bindZoomButtons() {
-    runtime.el.querySelector('[data-action="zoomOut"]').addEventListener("click", (e) => {
+    bindIf('[data-action="zoomOut"]', "click", (e) => {
       e.stopPropagation();
       zoomStep(1 / ZOOM_STEP, S.canvasWrap.clientWidth / 2, S.canvasWrap.clientHeight / 2);
     });
-    runtime.el.querySelector('[data-action="zoomIn"]').addEventListener("click", (e) => {
+    bindIf('[data-action="zoomIn"]', "click", (e) => {
       e.stopPropagation();
       zoomStep(ZOOM_STEP, S.canvasWrap.clientWidth / 2, S.canvasWrap.clientHeight / 2);
     });
-    runtime.el.querySelector('[data-action="zoomFit"]').addEventListener("click", (e) => {
+    bindIf('[data-action="zoomFit"]', "click", (e) => {
       e.stopPropagation();
       setZoomFit();
     });
@@ -2153,22 +2165,22 @@
     const redoBtn = runtime.el.querySelector('[data-action="redo"]');
     const resetBtn = runtime.el.querySelector('[data-action="reset"]');
     const restoreBtn = runtime.el.querySelector('[data-action="restore"]');
-    undoBtn.addEventListener("mousedown", (e) => e.stopPropagation());
-    redoBtn.addEventListener("mousedown", (e) => e.stopPropagation());
-    resetBtn.addEventListener("mousedown", (e) => e.stopPropagation());
-    restoreBtn.addEventListener("mousedown", (e) => e.stopPropagation());
-    undoBtn.addEventListener("click", undo);
-    redoBtn.addEventListener("click", redo);
-    resetBtn.addEventListener("click", resetDraw);
-    restoreBtn.addEventListener("click", restoreOriginal);
+    undoBtn && undoBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    redoBtn && redoBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    resetBtn && resetBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    restoreBtn && restoreBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    undoBtn && undoBtn.addEventListener("click", undo);
+    redoBtn && redoBtn.addEventListener("click", redo);
+    resetBtn && resetBtn.addEventListener("click", resetDraw);
+    restoreBtn && restoreBtn.addEventListener("click", restoreOriginal);
   }
   function bindCropActions() {
-    runtime.el.querySelector('[data-action="confirmCrop"]').addEventListener("click", confirmCrop);
-    runtime.el.querySelector('[data-action="cancelCrop"]').addEventListener("click", cancelCrop);
+    bindIf('[data-action="confirmCrop"]', "click", confirmCrop);
+    bindIf('[data-action="cancelCrop"]', "click", cancelCrop);
   }
   function bindLayerAddActions() {
-    runtime.el.querySelector('[data-action="addBitmapLayer"]').addEventListener("mousedown", (e) => e.stopPropagation());
-    runtime.el.querySelector('[data-action="addBitmapLayer"]').addEventListener("click", () => {
+    bindIf('[data-action="addBitmapLayer"]', "mousedown", (e) => e.stopPropagation());
+    bindIf('[data-action="addBitmapLayer"]', "click", () => {
       const fileInput = document.createElement("input");
       fileInput.type = "file";
       fileInput.accept = "image/*";
@@ -2188,23 +2200,23 @@
       });
       fileInput.click();
     });
-    runtime.el.querySelector('[data-action="addBlankLayer"]').addEventListener("mousedown", (e) => e.stopPropagation());
-    runtime.el.querySelector('[data-action="addBlankLayer"]').addEventListener("click", () => {
+    bindIf('[data-action="addBlankLayer"]', "mousedown", (e) => e.stopPropagation());
+    bindIf('[data-action="addBlankLayer"]', "click", () => {
       addBlankLayer();
     });
   }
   function bindExportActions() {
-    runtime.el.querySelector('[data-action="cancel"]').addEventListener("click", close);
-    runtime.el.querySelector('[data-action="newNode"]').addEventListener("click", () => exportResult("newNode"));
-    runtime.el.querySelector('[data-action="replace"]').addEventListener("click", () => exportResult("replace"));
+    bindIf('[data-action="cancel"]', "click", close);
+    bindIf('[data-action="newNode"]', "click", () => exportResult("newNode"));
+    bindIf('[data-action="replace"]', "click", () => exportResult("replace"));
   }
   function bindWheelZoom() {
     S.canvasWrap.addEventListener("wheel", onWheel, { passive: false });
   }
   function bindTextInput() {
     const textInput = runtime.el.querySelector(".iwb-editor-text-input");
-    textInput.addEventListener("mousedown", (e) => e.stopPropagation());
-    textInput.addEventListener("keydown", (e) => {
+    textInput && textInput.addEventListener("mousedown", (e) => e.stopPropagation());
+    textInput && textInput.addEventListener("keydown", (e) => {
       e.stopPropagation();
       if (e.key === "Enter") {
         e.preventDefault();
@@ -2230,7 +2242,7 @@
       }
       S._shiftDown = false;
     });
-    runtime.el.querySelector(".iwb-editor-modal").addEventListener("mousedown", (e) => e.stopPropagation());
+    bindIf(".iwb-editor-modal", "mousedown", (e) => e.stopPropagation());
   }
   function commitPenPath() {
     if (!S.penPath || S.penPath.pts.length < 2) {
@@ -3044,7 +3056,6 @@
     const octx = S.overlayCtx;
     const b = shapeBounds(s);
     const rot = s.rotation || 0;
-    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     octx.save();
     octx.strokeStyle = "#e8a735";
     octx.lineWidth = 1.5 / S.zoom;
@@ -4887,7 +4898,7 @@
       }
       await injectViaPasteEvent(cutoutBase64, filename, false);
     }
-    async function injectViaPasteEvent(cutoutBase64, filename, replaceMode) {
+    async function injectViaPasteEvent(cutoutBase64, filename, _replaceMode) {
       const file = base64ToFile(cutoutBase64, filename);
       const dt = new DataTransfer();
       dt.items.add(file);

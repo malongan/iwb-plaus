@@ -670,6 +670,25 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
   }
 
   // ============ 事件绑定 ============
+  /**
+   * 安全绑定：选择器找不到元素时只告警一次、不抛异常。
+   * 原实现是 querySelector(...).addEventListener 直接连写 —— DOM 里少一个元素
+   * 就会抛 TypeError 并中断**之后的所有绑定**，表现为"某个按钮突然全都不响应"。
+   */
+  const warnedMissing = new Set()
+  function bindIf(selector, type, handler, root) {
+    const el = (root || runtime.el).querySelector(selector)
+    if (!el) {
+      if (!warnedMissing.has(selector)) {
+        warnedMissing.add(selector)
+        console.warn('[IWB编辑器] 未找到元素，跳过绑定：' + selector)
+      }
+      return null
+    }
+    el.addEventListener(type, handler)
+    return el
+  }
+
   export function bindEvents() {
     bindToolButtons()
     bindColorPanel()
@@ -762,8 +781,8 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     if (sizeToggle) sizeToggle.addEventListener('click', () => { if (S.cropConstraint.type === 'size') setConstraint('free', 0, 0, 0); else { const w = parseInt(runtime.el.querySelector('.iwb-editor-size-w').value, 10), h = parseInt(runtime.el.querySelector('.iwb-editor-size-h').value, 10); if (w > 0 && h > 0) setConstraint('size', w / h, w, h) } })
 
     // 应用尺寸按钮
-    runtime.el.querySelector('[data-action="applySize"]').addEventListener('mousedown', (e) => e.stopPropagation())
-    runtime.el.querySelector('[data-action="applySize"]').addEventListener('click', () => {
+    bindIf('[data-action="applySize"]', 'mousedown', (e) => e.stopPropagation())
+    bindIf('[data-action="applySize"]', 'click', () => {
       const w = parseInt(runtime.el.querySelector('.iwb-editor-size-w').value, 10)
       const h = parseInt(runtime.el.querySelector('.iwb-editor-size-h').value, 10)
       if (w > 0 && h > 0) {
@@ -793,7 +812,7 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     // 实心矩形开关
     const fillBtn = runtime.el.querySelector('[data-action="toggleFill"]')
     if (fillBtn) fillBtn.addEventListener('mousedown', (e) => e.stopPropagation())
-    fillBtn.addEventListener('click', () => {
+    fillBtn && fillBtn.addEventListener('click', () => {
       S.rectFill = !S.rectFill
       updateFillUI()
       const sh = getSelectedShape()
@@ -839,8 +858,8 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
       btn.addEventListener('click', () => syncBrushSize(btn.dataset.brushSize, false))
     })
-    slider.addEventListener('input', () => syncBrushSize(slider.value, true))
-    slider.addEventListener('change', () => syncBrushSize(slider.value, false))
+    slider && slider.addEventListener('input', () => syncBrushSize(slider.value, true))
+    slider && slider.addEventListener('change', () => syncBrushSize(slider.value, false))
     if (brushNum) {
       brushNum.addEventListener('mousedown', (e) => e.stopPropagation())
       brushNum.addEventListener('input', () => {
@@ -855,14 +874,14 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
   function bindBrushParams() {
     // 画笔硬度
     const hardnessSlider = runtime.el.querySelector('.iwb-editor-brush-hardness')
-    hardnessSlider.addEventListener('input', () => {
+    hardnessSlider && hardnessSlider.addEventListener('input', () => {
       S.brushHardness = parseInt(hardnessSlider.value, 10)
       runtime.el.querySelector('.iwb-editor-brush-hardness-val').textContent = S.brushHardness
     })
 
     // 画笔透明度
     const opacitySlider = runtime.el.querySelector('.iwb-editor-brush-opacity')
-    opacitySlider.addEventListener('input', () => {
+    opacitySlider && opacitySlider.addEventListener('input', () => {
       S.brushOpacity = parseInt(opacitySlider.value, 10) / 100
       runtime.el.querySelector('.iwb-editor-brush-opacity-val').textContent = opacitySlider.value + '%'
       if (S.strokeCanvas) S.strokeCanvas.style.opacity = S.brushOpacity
@@ -872,15 +891,15 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
   /** 缩放按钮：缩小 / 放大 / 适应窗口 */
   function bindZoomButtons() {
     // 缩放按钮
-    runtime.el.querySelector('[data-action="zoomOut"]').addEventListener('click', (e) => {
+    bindIf('[data-action="zoomOut"]', 'click', (e) => {
       e.stopPropagation()
       zoomStep(1 / ZOOM_STEP, S.canvasWrap.clientWidth / 2, S.canvasWrap.clientHeight / 2)
     })
-    runtime.el.querySelector('[data-action="zoomIn"]').addEventListener('click', (e) => {
+    bindIf('[data-action="zoomIn"]', 'click', (e) => {
       e.stopPropagation()
       zoomStep(ZOOM_STEP, S.canvasWrap.clientWidth / 2, S.canvasWrap.clientHeight / 2)
     })
-    runtime.el.querySelector('[data-action="zoomFit"]').addEventListener('click', (e) => {
+    bindIf('[data-action="zoomFit"]', 'click', (e) => {
       e.stopPropagation()
       setZoomFit()
     })
@@ -893,28 +912,28 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     const redoBtn = runtime.el.querySelector('[data-action="redo"]')
     const resetBtn = runtime.el.querySelector('[data-action="reset"]')
     const restoreBtn = runtime.el.querySelector('[data-action="restore"]')
-    undoBtn.addEventListener('mousedown', (e) => e.stopPropagation())
-    redoBtn.addEventListener('mousedown', (e) => e.stopPropagation())
-    resetBtn.addEventListener('mousedown', (e) => e.stopPropagation())
-    restoreBtn.addEventListener('mousedown', (e) => e.stopPropagation())
-    undoBtn.addEventListener('click', undo)
-    redoBtn.addEventListener('click', redo)
-    resetBtn.addEventListener('click', resetDraw)
-    restoreBtn.addEventListener('click', restoreOriginal)
+    undoBtn && undoBtn.addEventListener('mousedown', (e) => e.stopPropagation())
+    redoBtn && redoBtn.addEventListener('mousedown', (e) => e.stopPropagation())
+    resetBtn && resetBtn.addEventListener('mousedown', (e) => e.stopPropagation())
+    restoreBtn && restoreBtn.addEventListener('mousedown', (e) => e.stopPropagation())
+    undoBtn && undoBtn.addEventListener('click', undo)
+    redoBtn && redoBtn.addEventListener('click', redo)
+    resetBtn && resetBtn.addEventListener('click', resetDraw)
+    restoreBtn && restoreBtn.addEventListener('click', restoreOriginal)
   }
 
   /** 裁剪确认 / 取消按钮 */
   function bindCropActions() {
     // 裁剪
-    runtime.el.querySelector('[data-action="confirmCrop"]').addEventListener('click', confirmCrop)
-    runtime.el.querySelector('[data-action="cancelCrop"]').addEventListener('click', cancelCrop)
+    bindIf('[data-action="confirmCrop"]', 'click', confirmCrop)
+    bindIf('[data-action="cancelCrop"]', 'click', cancelCrop)
   }
 
   /** 添加位图图层（导入图片）与新建空白图层 */
   function bindLayerAddActions() {
     // 添加位图图层（导入图片）
-    runtime.el.querySelector('[data-action="addBitmapLayer"]').addEventListener('mousedown', (e) => e.stopPropagation())
-    runtime.el.querySelector('[data-action="addBitmapLayer"]').addEventListener('click', () => {
+    bindIf('[data-action="addBitmapLayer"]', 'mousedown', (e) => e.stopPropagation())
+    bindIf('[data-action="addBitmapLayer"]', 'click', () => {
       const fileInput = document.createElement('input')
       fileInput.type = 'file'
       fileInput.accept = 'image/*'
@@ -936,8 +955,8 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     })
 
     // 新建空白图层
-    runtime.el.querySelector('[data-action="addBlankLayer"]').addEventListener('mousedown', (e) => e.stopPropagation())
-    runtime.el.querySelector('[data-action="addBlankLayer"]').addEventListener('click', () => {
+    bindIf('[data-action="addBlankLayer"]', 'mousedown', (e) => e.stopPropagation())
+    bindIf('[data-action="addBlankLayer"]', 'click', () => {
       addBlankLayer()
     })
   }
@@ -945,9 +964,9 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
   /** 底部动作：关闭 / 作为新节点 / 替换（导出入口） */
   function bindExportActions() {
     // 底部
-    runtime.el.querySelector('[data-action="cancel"]').addEventListener('click', close)
-    runtime.el.querySelector('[data-action="newNode"]').addEventListener('click', () => exportResult('newNode'))
-    runtime.el.querySelector('[data-action="replace"]').addEventListener('click', () => exportResult('replace'))
+    bindIf('[data-action="cancel"]', 'click', close)
+    bindIf('[data-action="newNode"]', 'click', () => exportResult('newNode'))
+    bindIf('[data-action="replace"]', 'click', () => exportResult('replace'))
   }
 
   /** 滚轮缩放：绑定在画布容器上（非 passive，需要 preventDefault） */
@@ -962,8 +981,8 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
   function bindTextInput() {
     // 文字输入
     const textInput = runtime.el.querySelector('.iwb-editor-text-input')
-    textInput.addEventListener('mousedown', (e) => e.stopPropagation())
-    textInput.addEventListener('keydown', (e) => {
+    textInput && textInput.addEventListener('mousedown', (e) => e.stopPropagation())
+    textInput && textInput.addEventListener('keydown', (e) => {
       e.stopPropagation()
       if (e.key === 'Enter') { e.preventDefault(); commitTextInput() }
       else if (e.key === 'Escape') { e.preventDefault(); hideTextInput() }
@@ -984,7 +1003,7 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     })
 
     // 阻止 modal 内部点击冒泡
-    runtime.el.querySelector('.iwb-editor-modal').addEventListener('mousedown', (e) => e.stopPropagation())
+    bindIf('.iwb-editor-modal', 'mousedown', (e) => e.stopPropagation())
   }
 
   function commitPenPath() {

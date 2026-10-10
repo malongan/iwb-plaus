@@ -102,31 +102,16 @@ import { isDrawableLayer } from '../shared/layer-logic.js'
     layer.ctx.restore()
   }
 
-  /** 设置活跃图层 */
+  /** 按图层当前的源（原图 / 源画布 / 内容盒）与旋转角重绘该图层 */
   export function redrawBitmapLayer(layer) {
      if (!layer || !layer.ctx) return
      layer.ctx.clearRect(0, 0, S.imgW, S.imgH)
      paintTransformed(layer, resolveSourceBox(layer))
    }
 
-   function bitmapHandlePoints(layer) {
-     const rot = layer.rotation || 0
-     const cx = layer.x + layer.w / 2, cy = layer.y + layer.h / 2
-     const local = {
-       nw: [layer.x, layer.y], ne: [layer.x + layer.w, layer.y],
-       sw: [layer.x, layer.y + layer.h], se: [layer.x + layer.w, layer.y + layer.h],
-       n: [layer.x + layer.w / 2, layer.y], s: [layer.x + layer.w / 2, layer.y + layer.h],
-       e: [layer.x + layer.w, layer.y + layer.h / 2], w: [layer.x, layer.y + layer.h / 2]
-     }
-     const out = {}
-     for (const k in local) out[k] = rotPt(local[k][0], local[k][1], cx, cy, rot)
-     return out
-   }
-
    export function hitBitmapHandle(pos) {
      const layer = S.layers.find(l => l.id === S.selectedLayerId && (l.transformable || isDrawableLayer(l)))
      if (!layer || layer.visible === false) return null
-     const drawable = isDrawableLayer(layer)
      const box = layerFrame(layer)
      if (!(box.w > 0 && box.h > 0)) return null
      const rot = layer.rotation || 0
@@ -330,6 +315,7 @@ import { isDrawableLayer } from '../shared/layer-logic.js'
      redrawBitmapLayer(layer)
    }
 
+  /** 切换画笔/橡皮作用的活动图层 */
 export function setActiveLayer(id) {
     S.activeLayerId = id
     S.selectedLayerId = id
@@ -462,15 +448,6 @@ export function setActiveLayer(id) {
     layer.visible = !layer.visible
     reorderLayerCanvas()
     renderLayerPanel()
-    S.pickerComposite = null
-  }
-
-  /** 设置图层透明度 */
-  function setLayerOpacity(id, val) {
-    const layer = S.layers.find(l => l.id === id)
-    if (!layer) return
-    layer.opacity = val
-    layer.canvas.style.opacity = val
     S.pickerComposite = null
   }
 

@@ -371,7 +371,7 @@ import {
   }
 
   /** 通过模拟 paste 事件注入图片 */
-  async function injectViaPasteEvent(cutoutBase64, filename, replaceMode) {
+  async function injectViaPasteEvent(cutoutBase64, filename, _replaceMode) {
     // 尝试构造 synthetic paste event
     const file = base64ToFile(cutoutBase64, filename)
     const dt = new DataTransfer()
