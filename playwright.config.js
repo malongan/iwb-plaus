@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test'
+import {defineConfig} from '@playwright/test'
 
 /**
  * 扩展 e2e 需要持久化上下文 + --load-extension，因此不用 test.use 的默认启动方式，
@@ -8,7 +8,7 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 60_000,
-  expect: { timeout: 15_000 },
+  expect: {timeout: 15_000},
   workers: 1,
   retries: 0,
   reporter: [['list']],

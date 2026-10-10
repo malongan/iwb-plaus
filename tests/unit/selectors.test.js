@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest'
-import { SEL, EXT_SEL, byNodeId, probeHost, probeProblems } from '../../iwb-cutout-extension/src/shared/selectors.js'
+import {describe, it, expect, beforeEach} from 'vitest'
+import {SEL, EXT_SEL, byNodeId, probeHost, probeProblems} from '../../iwb-cutout-extension/src/shared/selectors.js'
 
 /** 复刻宿主的关键 DOM 契约 */
-function renderHost({ breakImageClass = false } = {}) {
+function renderHost({breakImageClass = false} = {}) {
   const imgClass = breakImageClass ? 'iwb-ref-renamed' : 'iwb-ref-single'
   document.body.innerHTML = `
     <div class="canvas">
@@ -77,28 +77,28 @@ describe('probeHost 自检', () => {
   it('结构正常：图片选择器 ok、画布节点有命中', () => {
     renderHost()
     const results = probeHost(document)
-    const image = results.find((r) => r.name === '图片选择器')
-    const nodes = results.find((r) => r.name === '画布节点')
+    const image = results.find(r => r.name === '图片选择器')
+    const nodes = results.find(r => r.name === '画布节点')
     expect(image.ok).toBe(true)
     expect(image.level).toBe('ok')
     expect(nodes.ok).toBe(true)
-    expect(probeProblems(results).filter((p) => p.level === 'error')).toHaveLength(0)
+    expect(probeProblems(results).filter(p => p.level === 'error')).toHaveLength(0)
   })
 
   it('宿主改版（有图但类名变了）：报 error，可被 probeProblems 捞出', () => {
-    renderHost({ breakImageClass: true })
+    renderHost({breakImageClass: true})
     const results = probeHost(document)
-    const image = results.find((r) => r.name === '图片选择器')
+    const image = results.find(r => r.name === '图片选择器')
     expect(image.ok).toBe(false)
     expect(image.level).toBe('error')
     expect(image.detail).toContain('宿主可能改版')
-    expect(probeProblems(results).some((p) => p.name === '图片选择器')).toBe(true)
+    expect(probeProblems(results).some(p => p.name === '图片选择器')).toBe(true)
   })
 
   it('页面没有图片节点时跳过图片校验，不误报', () => {
     document.body.innerHTML = '<div class="iwb-node" data-node-id="n1"></div>'
     const results = probeHost(document)
-    const image = results.find((r) => r.name === '图片选择器')
+    const image = results.find(r => r.name === '图片选择器')
     expect(image.ok).toBe(true)
     expect(image.detail).toContain('跳过校验')
   })
@@ -112,7 +112,7 @@ describe('probeHost 自检', () => {
       expect(['ok', 'warn', 'error', 'info']).toContain(r.level)
       expect(typeof r.detail).toBe('string')
     }
-    const names = results.map((r) => r.name)
+    const names = results.map(r => r.name)
     expect(new Set(names).size).toBe(names.length)
   })
 })

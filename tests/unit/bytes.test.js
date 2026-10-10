@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { base64ToBytes, bytesToBase64, bytesToDataUrl, splitDataUrl, toFile, bufferToDataUrl } from '../../iwb-cutout-extension/src/shared/bytes.js'
+import {describe, it, expect} from 'vitest'
+import {
+  base64ToBytes,
+  bytesToBase64,
+  bytesToDataUrl,
+  splitDataUrl,
+  toFile,
+  bufferToDataUrl
+} from '../../iwb-cutout-extension/src/shared/bytes.js'
 
 const PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='

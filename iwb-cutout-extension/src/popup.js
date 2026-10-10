@@ -5,6 +5,7 @@
  */
 
 import { DEFAULT_CONFIG as DEFAULTS, mergeConfig } from './shared/config.js'
+import { readLastError, clearLastError } from './shared/error-report.js'
 
 document.addEventListener('DOMContentLoaded', () => {
   const apiUrlEl = document.getElementById('apiUrl')
@@ -27,6 +28,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const verText = document.getElementById('verText')
 
   verText.textContent = 'v' + chrome.runtime.getManifest().version
+
+  // ===== 最近一次错误（由 content 的错误边界写入 chrome.storage） =====
+  const errSection = document.getElementById('errSection')
+  const lastErrorEl = document.getElementById('lastError')
+  const clearErrBtn = document.getElementById('clearErrBtn')
+
+  async function renderLastError() {
+    const entry = await readLastError()
+    if (!entry) {
+      errSection.hidden = true
+      return
+    }
+    const when = new Date(entry.at).toLocaleString()
+    errSection.hidden = false
+    lastErrorEl.textContent = `${when}\n[${entry.source}] ${entry.message}`
+  }
+  renderLastError()
+  clearErrBtn.addEventListener('click', async () => {
+    await clearLastError()
+    renderLastError()
+  })
 
   /** 把归一化后的配置回填到表单（让用户看到被 clamp 的结果） */
   function fillForm(config) {

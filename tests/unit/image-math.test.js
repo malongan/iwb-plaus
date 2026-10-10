@@ -1,22 +1,22 @@
-import { describe, it, expect } from 'vitest'
-import { hexToRgb, rgbToHex, parseRatio, fitRect, clamp } from '../../iwb-cutout-extension/src/shared/image-math.js'
+import {describe, it, expect} from 'vitest'
+import {hexToRgb, rgbToHex, parseRatio, fitRect, clamp} from '../../iwb-cutout-extension/src/shared/image-math.js'
 
 describe('hexToRgb / rgbToHex', () => {
   it('6 位与 3 位十六进制', () => {
-    expect(hexToRgb('#ff4444')).toEqual({ r: 255, g: 68, b: 68 })
-    expect(hexToRgb('#f44')).toEqual({ r: 255, g: 68, b: 68 })
-    expect(hexToRgb('1a7f37')).toEqual({ r: 26, g: 127, b: 55 })
+    expect(hexToRgb('#ff4444')).toEqual({r: 255, g: 68, b: 68})
+    expect(hexToRgb('#f44')).toEqual({r: 255, g: 68, b: 68})
+    expect(hexToRgb('1a7f37')).toEqual({r: 26, g: 127, b: 55})
   })
 
   it('非法输入给 0 而不是 NaN（旧实现会抛异常）', () => {
-    expect(hexToRgb(undefined)).toEqual({ r: 0, g: 0, b: 0 })
-    expect(hexToRgb('')).toEqual({ r: 0, g: 0, b: 0 })
-    expect(hexToRgb('#zz')).toEqual({ r: 0, g: 0, b: 0 })
+    expect(hexToRgb(undefined)).toEqual({r: 0, g: 0, b: 0})
+    expect(hexToRgb('')).toEqual({r: 0, g: 0, b: 0})
+    expect(hexToRgb('#zz')).toEqual({r: 0, g: 0, b: 0})
   })
 
   it('往返一致', () => {
     expect(rgbToHex(255, 68, 68)).toBe('#ff4444')
-    expect(hexToRgb(rgbToHex(26, 127, 55))).toEqual({ r: 26, g: 127, b: 55 })
+    expect(hexToRgb(rgbToHex(26, 127, 55))).toEqual({r: 26, g: 127, b: 55})
   })
 
   it('越界值被夹到 0~255，不会产出畸形 hex', () => {
@@ -78,7 +78,7 @@ describe('fitRect（白底大图布局）', () => {
   })
 
   it('非法尺寸返回全 0，避免 NaN 画进 canvas', () => {
-    expect(fitRect(0, 100, 800, 800, 0.85)).toEqual({ x: 0, y: 0, w: 0, h: 0, scale: 0 })
+    expect(fitRect(0, 100, 800, 800, 0.85)).toEqual({x: 0, y: 0, w: 0, h: 0, scale: 0})
     expect(fitRect(100, 100, 0, 800, 0.85).scale).toBe(0)
     expect(Number.isNaN(fitRect(100, 100, 800, 800, 0.85).x)).toBe(false)
   })

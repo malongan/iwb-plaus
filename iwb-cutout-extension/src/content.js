@@ -13,6 +13,20 @@ import { CONFIG_KEY, DEFAULT_CONFIG, mergeConfig } from './shared/config.js'
 import { toFile } from './shared/bytes.js'
 import { SEL, EXT_SEL, byNodeId, probeHost, probeProblems } from './shared/selectors.js'
 import { fitRect } from './shared/image-math.js'
+import { installErrorBoundary, describeError } from './shared/error-report.js'
+// 宿主适配层：读节点图片/判定形态/写回 file input/等待新建节点等 DOM 原语。
+// 别名导入保持本文件原有调用名不变，逻辑统一收敛到 host-adapter（有单测覆盖）。
+import {
+  getNodeImage as getImageFromNode,
+  hasImage as nodeHasImage,
+  isEmptyRefNode,
+  getNodeFileName as getNodeImageName,
+  snapshotNodes,
+  getAddRefButton,
+  waitForNewNode as waitForNewRefNode,
+  writeFileToNode,
+  resolveLiveNode
+} from './shared/host-adapter.js'
 
 (function () {
   'use strict'
@@ -60,21 +74,7 @@ import { fitRect } from './shared/image-math.js'
   let toastTimer = null
 
   // ============ 核心逻辑 ============
-
-  /** 从 DOM 节点读取图片数据 */
-  function getImageFromNode(nodeEl) {
-    // 兼容图片元素自身带 class，以及 class 挂在图片容器上的两种结构。
-    let img = nodeEl.querySelector(SEL.refImage)
-    // 输出节点的图片
-    if (!img) img = nodeEl.querySelector(SEL.outImage)
-    if (!img) return null
-
-    const src = img.currentSrc || img.src
-    if (!src) return null
-    if (src.startsWith('data:')) return { base64: src }
-    if (src.startsWith('blob:')) return { blobUrl: src }
-    return { url: src }
-  }
+  // 节点图片读取由 shared/host-adapter.js 的 getNodeImage() 提供（见文件顶部别名导入）
 
   /** 将 blob URL 转为 base64 */
   async function blobUrlToBase64(blobUrl) {
@@ -344,102 +344,30 @@ import { fitRect } from './shared/image-math.js'
     }
   }
 
-  /** 获取节点中的图片文件名 */
-  function getNodeImageName(nodeEl) {
-    // 从 localStorage 读取节点数据获取文件名
-    try {
-      const wsData = JSON.parse(localStorage.getItem(SEL.workspacesKey) || '{}')
-      const ws = (wsData.workspaces || []).find(w => w.id === (wsData.activeId || wsData.workspaces?.[0]?.id))
-      const nodeId = nodeEl.getAttribute('data-node-id')
-      const node = (ws?.nodes || []).find(n => n.id === nodeId)
-      return node?.data?.name || 'image'
-    } catch (e) {
-      return 'image'
-    }
-  }
+  // 节点文件名与"等待宿主新建节点"都由 shared/host-adapter.js 提供
 
-  /** 替换模式：通过节点头部的 file input 注入抠图结果 */
+  /** 替换模式：把结果写回节点（优先头部 file input，其次 body file input） */
   async function injectReplaceImage(nodeEl, cutoutBase64, filename) {
-    // 方案 A: 使用节点头部的「替换图片」file input
-    const headFileInput = nodeEl.querySelector(SEL.headFileInput)
-    if (headFileInput) {
-      const file = base64ToFile(cutoutBase64, filename)
-      const dt = new DataTransfer()
-      dt.items.add(file)
-      headFileInput.files = dt.files
-      headFileInput.dispatchEvent(new Event('change', { bubbles: true }))
-      return
-    }
-
-    // 方案 B: 使用节点 body 的 file input（空节点的上传标签）
-    const bodyFileInput = nodeEl.querySelector(SEL.bodyFileInput)
-    if (bodyFileInput) {
-      const file = base64ToFile(cutoutBase64, filename)
-      const dt = new DataTransfer()
-      dt.items.add(file)
-      bodyFileInput.files = dt.files
-      bodyFileInput.dispatchEvent(new Event('change', { bubbles: true }))
-      return
-    }
-
-    // 方案 C: 模拟粘贴（选中该节点后触发 paste 事件）
+    if (writeFileToNode(nodeEl, base64ToFile(cutoutBase64, filename))) return
+    // 没有可用的 file input：模拟粘贴（选中该节点后触发 paste 事件）
     await injectViaPasteEvent(cutoutBase64, filename, true)
   }
 
-  /** 新建节点模式：点击工具栏添加 ref 节点，再注入图片 */
+  /** 新建节点模式：点击「添加参考图」→ 等宿主建出新节点 → 把结果写进去 */
   async function injectNewNode(cutoutBase64, filename) {
-    // 方案 A: 点击工具栏「添加参考图」按钮，然后用 file input 注入
-    const addRefBtn = document.querySelector(SEL.addRefBtn)
+    const addRefBtn = getAddRefButton()
     if (addRefBtn) {
       // 必须在点击【之前】记录已有节点：宿主若同步创建节点，
       // 点击后再记录会把它误判成"本来就有"，等待超时后退化到粘贴兜底。
-      const before = Array.from(document.querySelectorAll(SEL.node))
+      const before = snapshotNodes()
       addRefBtn.click()
       const newNode = await waitForNewRefNode(before)
-      if (newNode) {
-        const fileInput = newNode.querySelector('input[type="file"]')
-        if (fileInput) {
-          const file = base64ToFile(cutoutBase64, filename)
-          const dt = new DataTransfer()
-          dt.items.add(file)
-          fileInput.files = dt.files
-          fileInput.dispatchEvent(new Event('change', { bubbles: true }))
-          return
-        }
-      }
+      // 新节点结构不固定，这里允许退回"任意 file input"
+      if (newNode && writeFileToNode(newNode, base64ToFile(cutoutBase64, filename), { allowAny: true })) return
     }
 
     // 方案 B: 取消选中所有节点，模拟 paste 事件创建新节点
     await injectViaPasteEvent(cutoutBase64, filename, false)
-  }
-
-  /**
-   * 等待新创建的空 ref 节点出现在 DOM 中
-   * @param {Element[]} [existing] 触发创建之前就已存在的节点（必须在点击前采集）
-   */
-  function waitForNewRefNode(existing, timeout = 2000) {
-    const existingNodes = Array.isArray(existing) ? existing : Array.from(document.querySelectorAll(SEL.node))
-    return new Promise((resolve) => {
-      const startTime = Date.now()
-
-      function check() {
-        const currentNodes = document.querySelectorAll(SEL.node)
-        // 找到新出现的空 ref 节点（没有图片的节点 = 空 ref 节点）
-        for (const node of currentNodes) {
-          if (!node.querySelector(SEL.refImage) && !existingNodes.includes(node)) {
-            resolve(node)
-            return
-          }
-        }
-        if (Date.now() - startTime > timeout) {
-          resolve(null)
-        } else {
-          // 用定时器而不是 rAF：后台/离屏标签页里 rAF 可能被完全暂停
-          setTimeout(check, 50)
-        }
-      }
-      check()
-    })
   }
 
   /** 通过模拟 paste 事件注入图片 */
@@ -592,11 +520,7 @@ import { fitRect } from './shared/image-math.js'
   }
 
   // ============ 空白画布（供标注绘制插图） ============
-  function isEmptyRefNode(nodeEl) {
-    return !!(nodeEl.querySelector(SEL.emptyBox) || (nodeEl.querySelector(SEL.refBody) && !nodeEl.querySelector(SEL.refImage)))
-  }
-  // 与应用侧常用尺寸一致：比例 × 清晰度（1K/2K/4K）
-  const BLANK_RES_KEYS = ['1K']
+  // isEmptyRefNode 由 shared/host-adapter.js 提供
   const BLANK_RATIOS = [
     { value: '1:1', label: '1:1 方形', sizes: { '1K': '1024x1024', '2K': '2048x2048', '4K': '2864x2864' } },
     { value: '2:3', label: '2:3 竖版', sizes: { '1K': '832x1248', '2K': '1536x2304', '4K': '2048x3072' } },
@@ -694,11 +618,7 @@ import { fitRect } from './shared/image-math.js'
       if (existing.dataset.nodeId === nodeId) return
       existing.remove()
     }
-    const liveNode = () => {
-      const sel = document.querySelector(SEL.nodeSelected)
-      if (sel) return sel
-      return byNodeId(nodeId) || nodeEl
-    }
+    const liveNode = () => resolveLiveNode(nodeId, nodeEl)
     const b = document.createElement('button')
     b.className = 'iwb-node-del iwb-blank-canvas-btn'
     b.innerHTML = BLANK_CANVAS_SVG
@@ -713,11 +633,7 @@ import { fitRect } from './shared/image-math.js'
 
   // ============ 按钮注入 ============
 
-  /** 判断节点是否带图片（ref 有图 / out 输出图） */
-  function nodeHasImage(nodeEl) {
-    // 只处理真实图片节点：参考图(ref)与输出(out)；不含 prompt/llm 等缩略图
-    return !!nodeEl.querySelector(SEL.anyImage)
-  }
+  // nodeHasImage 由 shared/host-adapter.js 的 hasImage() 提供
 
   /** 在 host 内创建全部工具按钮（抠图/白底/压缩/编辑）。重复调用安全（已有则跳过）。 */
   function addToolButtons(host, nodeEl, beforeEl) {
@@ -730,11 +646,7 @@ import { fitRect } from './shared/image-math.js'
       host.querySelectorAll(SEL.extButtons).forEach(b => b.remove())
     }
     // 点击时优先使用“当前选中的节点”，避免复用气泡栏时绑定到上一个节点
-    const liveNode = () => {
-      const sel = document.querySelector(SEL.nodeSelected)
-      if (sel) return sel
-      return byNodeId(nodeId) || nodeEl
-    }
+    const liveNode = () => resolveLiveNode(nodeId, nodeEl)
     const make = (cls, content, color, tip, run) => {
       const b = document.createElement('button')
       b.className = 'iwb-node-del ' + cls
@@ -873,6 +785,9 @@ import { fitRect } from './shared/image-math.js'
 
   function init() {
     if (!document.body.contains(overlay)) document.body.appendChild(overlay)
+    // 错误边界：未处理异常/未捕获 Promise 一律落盘 + 一次性提示，
+    // 用户不再只看到"点了没反应"（详见 popup 的「最近一次错误」）
+    installErrorBoundary({ chromeRef: chrome, onFatal: (entry) => showToast(describeError(entry), 'error') })
     ensureToolbar()
 
     scheduleToolbarUpdate()

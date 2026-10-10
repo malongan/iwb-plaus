@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { isDrawableLayer, restorePath, needsPixelSnapshot } from '../../iwb-cutout-extension/src/shared/layer-logic.js'
+import {describe, it, expect} from 'vitest'
+import {isDrawableLayer, restorePath, needsPixelSnapshot} from '../../iwb-cutout-extension/src/shared/layer-logic.js'
 
 /**
  * 这组测试守护阶段二（快照分级）的核心不变量：
@@ -7,11 +7,11 @@ import { isDrawableLayer, restorePath, needsPixelSnapshot } from '../../iwb-cuto
  * 一旦有人改动其中一端的判定，这里立刻红。
  */
 
-const base = { id: 'base', image: {}, sourceCanvas: null, transformable: true }
-const draw = { id: 'draw', image: null, sourceCanvas: {}, transformable: true }
-const imported = { id: 'layer-1', image: {}, sourceCanvas: null, transformable: true }
-const plainBitmap = { id: 'layer-2', image: null, sourceCanvas: null, transformable: false }
-const nonTransformable = { id: 'layer-3', image: {}, sourceCanvas: null, transformable: false }
+const base = {id: 'base', image: {}, sourceCanvas: null, transformable: true}
+const draw = {id: 'draw', image: null, sourceCanvas: {}, transformable: true}
+const imported = {id: 'layer-1', image: {}, sourceCanvas: null, transformable: true}
+const plainBitmap = {id: 'layer-2', image: null, sourceCanvas: null, transformable: false}
+const nonTransformable = {id: 'layer-3', image: {}, sourceCanvas: null, transformable: false}
 
 describe('isDrawableLayer', () => {
   it('原图层与带 image 的图层不是绘制层', () => {
@@ -69,7 +69,7 @@ describe('不变量：快照跳过 ⇔ 恢复不读', () => {
   })
 
   it('白存像素的只可能是"可重绘"图层，不会漏掉任何需要像素的图层', () => {
-    const skipped = layers.filter((l) => !needsPixelSnapshot(l))
+    const skipped = layers.filter(l => !needsPixelSnapshot(l))
     // 本项目里被跳过的应当是原图层/导入图层这类几何重绘图层
     for (const layer of skipped) {
       expect(layer).toBeTruthy()

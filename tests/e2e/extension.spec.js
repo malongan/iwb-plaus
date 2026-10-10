@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test'
-import { startFakeApi, launchExtension, closeExtension, waitForExtension, setConfig } from './helpers.mjs'
+import {test, expect} from '@playwright/test'
+import {startFakeApi, launchExtension, closeExtension, waitForExtension, setConfig} from './helpers.mjs'
 
 /** 扩展 e2e：真实加载 build/e2e-ext，在复刻宿主 DOM 的 fixture 页面上跑端到端链路 */
 
@@ -8,7 +8,7 @@ let context
 
 test.beforeAll(async () => {
   server = await startFakeApi()
-  context = await launchExtension({ headless: true })
+  context = await launchExtension({headless: true})
   await waitForExtension(context)
 })
 
@@ -24,7 +24,7 @@ async function openFixture() {
   return page
 }
 
-const logText = (page) => page.evaluate(() => document.getElementById('log').textContent || '')
+const logText = page => page.evaluate(() => document.getElementById('log').textContent || '')
 
 test('工具条：选中带图节点后注入 4 个工具按钮', async () => {
   const page = await openFixture()
@@ -43,11 +43,9 @@ test('抠图：读取图片 → 调本地 API → 作为新节点注入', async 
   await page.locator('#iwb-cutout-toolbar .iwb-cutout-btn').click()
 
   // 新建节点模式（默认）：宿主新建节点后由扩展注入文件
-  await page.waitForFunction(
-    () => (document.getElementById('log').textContent || '').includes('NEWFILE:'),
-    null,
-    { timeout: 20_000 }
-  )
+  await page.waitForFunction(() => (document.getElementById('log').textContent || '').includes('NEWFILE:'), null, {
+    timeout: 20_000
+  })
   const log = await logText(page)
   expect(log).toContain('_cutout.png')
 
@@ -62,36 +60,32 @@ test('抠图：读取图片 → 调本地 API → 作为新节点注入', async 
 test('白底图：生成 800x800 并作为新节点注入', async () => {
   const page = await openFixture()
   await page.locator('#iwb-cutout-toolbar .iwb-whitebg-btn').click()
-  await page.waitForFunction(
-    () => (document.getElementById('log').textContent || '').includes('NEWFILE:'),
-    null,
-    { timeout: 20_000 }
-  )
+  await page.waitForFunction(() => (document.getElementById('log').textContent || '').includes('NEWFILE:'), null, {
+    timeout: 20_000
+  })
   expect(await logText(page)).toContain('_800x800.png')
   await page.close()
 })
 
 test('替换模式：结果写回节点头部的 file input', async () => {
-  await setConfig(context, { replaceMode: true })
+  await setConfig(context, {replaceMode: true})
   try {
     const page = await openFixture()
     await page.locator('#iwb-cutout-toolbar .iwb-cutout-btn').click()
-    await page.waitForFunction(
-      () => (document.getElementById('log').textContent || '').includes('FILE:'),
-      null,
-      { timeout: 20_000 }
-    )
+    await page.waitForFunction(() => (document.getElementById('log').textContent || '').includes('FILE:'), null, {
+      timeout: 20_000
+    })
     expect(await logText(page)).toMatch(/FILE:.*_cutout\.png/)
     await page.close()
   } finally {
-    await setConfig(context, { replaceMode: false })
+    await setConfig(context, {replaceMode: false})
   }
 })
 
 test('编辑器：点击紫色按钮能打开全屏编辑器', async () => {
   const page = await openFixture()
   await page.locator('#iwb-cutout-toolbar .iwb-editor-btn-icon').click()
-  await expect(page.locator('#iwb-editor-overlay')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('#iwb-editor-overlay')).toBeVisible({timeout: 15_000})
   // 编辑器打开时工具条应被隐藏，避免悬浮在全屏层之上
   await expect(page.locator('#iwb-cutout-toolbar')).toBeHidden()
   await page.close()
@@ -108,7 +102,7 @@ test('自检：popup 的「自检」按钮渲染宿主契约命中情况', async
   await popup.addInitScript(() => {
     const orig = chrome.tabs.query.bind(chrome.tabs)
     chrome.tabs.query = (info, cb) => {
-      if (info && info.active) orig({ url: 'http://127.0.0.1:*/fixture*' }, (t) => cb(t))
+      if (info && info.active) orig({url: 'http://127.0.0.1:*/fixture*'}, t => cb(t))
       else orig(info, cb)
     }
   })
@@ -129,15 +123,37 @@ test('诊断：宿主图片选择器失效时给出一次性告警', async () =>
   const page = await context.newPage()
   await page.bringToFront()
   // 把 fixture 里的图片类名改掉，模拟宿主改版（选择器匹配不到、但页面确实有图）
-  await page.route('**/fixture*', async (route) => {
+  await page.route('**/fixture*', async route => {
     const resp = await route.fetch()
     const body = (await resp.text()).replace(/iwb-ref-single/g, 'iwb-ref-renamed')
-    await route.fulfill({ response: resp, body })
+    await route.fulfill({response: resp, body})
   })
   await page.goto(server.url('/fixture'))
 
   // init() 3 秒后跑一次宿主契约自检
-  await expect(page.locator('.iwb-cutout-toast')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.iwb-cutout-toast')).toBeVisible({timeout: 10_000})
   await expect(page.locator('.iwb-cutout-toast')).toContainText('宿主页面结构可能已变化')
   await page.close()
+})
+
+test('最近一次错误：错误边界落盘后 popup 可查看与清除', async () => {
+  const sw = await waitForExtension(context)
+  // content 的错误边界会把未处理异常写进 chrome.storage，这里直接模拟一条
+  await sw.evaluate(async () => {
+    await chrome.storage.local.set({
+      iwb_last_error: {message: '模拟的内部异常', source: 'window.onerror', stack: '', at: Date.now()}
+    })
+  })
+  const extId = new URL(sw.url()).host
+  const popup = await context.newPage()
+  await popup.goto(`chrome-extension://${extId}/popup.html`)
+
+  const section = popup.locator('#errSection')
+  await expect(section).toBeVisible()
+  await expect(popup.locator('#lastError')).toContainText('模拟的内部异常')
+  await expect(popup.locator('#verText')).toHaveText(/^v\d/)
+
+  await popup.click('#clearErrBtn')
+  await expect(section).toBeHidden()
+  await popup.close()
 })

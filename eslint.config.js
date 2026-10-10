@@ -32,16 +32,16 @@ export default [
     },
     rules: {
       'no-undef': 'error',
-      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-empty': ['error', {allowEmptyCatch: true}],
       // 旧代码里大量"预留但未用"的字段，先降级为警告，避免掩盖 no-undef
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
-      'no-constant-condition': ['error', { checkLoops: false }]
+      'no-unused-vars': ['warn', {argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none'}],
+      'no-constant-condition': ['error', {checkLoops: false}]
     }
   },
   {
     files: ['tests/**/*.js', 'scripts/**/*.mjs', '*.config.js'],
     languageOptions: {
-      globals: { ...globals.node }
+      globals: {...globals.node}
     }
   }
 ]

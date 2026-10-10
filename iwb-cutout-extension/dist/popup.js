@@ -59,6 +59,27 @@
     };
   }
 
+  // iwb-cutout-extension/src/shared/error-report.js
+  var LAST_ERROR_KEY = "iwb_last_error";
+  async function readLastError(chromeRef = globalThis.chrome) {
+    try {
+      if (chromeRef && chromeRef.storage && chromeRef.storage.local) {
+        const res = await chromeRef.storage.local.get(LAST_ERROR_KEY);
+        return res[LAST_ERROR_KEY] || null;
+      }
+    } catch {
+    }
+    return null;
+  }
+  async function clearLastError(chromeRef = globalThis.chrome) {
+    try {
+      if (chromeRef && chromeRef.storage && chromeRef.storage.local) {
+        await chromeRef.storage.local.remove(LAST_ERROR_KEY);
+      }
+    } catch {
+    }
+  }
+
   // iwb-cutout-extension/src/popup.js
   document.addEventListener("DOMContentLoaded", () => {
     const apiUrlEl = document.getElementById("apiUrl");
@@ -80,6 +101,25 @@
     const probeResult = document.getElementById("probeResult");
     const verText = document.getElementById("verText");
     verText.textContent = "v" + chrome.runtime.getManifest().version;
+    const errSection = document.getElementById("errSection");
+    const lastErrorEl = document.getElementById("lastError");
+    const clearErrBtn = document.getElementById("clearErrBtn");
+    async function renderLastError() {
+      const entry = await readLastError();
+      if (!entry) {
+        errSection.hidden = true;
+        return;
+      }
+      const when = new Date(entry.at).toLocaleString();
+      errSection.hidden = false;
+      lastErrorEl.textContent = `${when}
+[${entry.source}] ${entry.message}`;
+    }
+    renderLastError();
+    clearErrBtn.addEventListener("click", async () => {
+      await clearLastError();
+      renderLastError();
+    });
     function fillForm(config) {
       apiUrlEl.value = config.apiUrl;
       cropEl.checked = config.crop;

@@ -176,35 +176,57 @@
 
 ```
 iwb-cutout-extension/
-├── manifest.json       # MV3 配置 (v2.16.1)；service_worker 与 content_scripts 指向 dist/*.js
+├── manifest.json       # MV3 配置 (v3.0.0)；service_worker 与 content_scripts 指向 dist/*.js
 ├── popup.html          # 设置弹窗（script src="dist/popup.js"）
 ├── styles.css          # 注入样式（含编辑器 + 图层面板样式）
 ├── src/                # 源码（改动这里）
-│   ├── content.js      # 内容脚本：注入按钮、读取图片、注入结果
-│   ├── editor.js       # 图层化图片编辑器（图层 + 裁剪 + 标注）
+│   ├── content.js      # 内容脚本：编排抠图/白底/压缩/编辑流程（宿主 DOM 一律走 host-adapter）
+│   ├── editor/         # 图层化图片编辑器（v3.0.0 起由 11 个模块组成，共 4288 行）
+│   │   ├── state.js    #   唯一状态所有者：S / ZOOM_* / runtime.el（叶子模块，不 import 编辑器内部模块）
+│   │   ├── index.js    #   打开/关闭/导出 + window.__iwbEditor 对外接口
+│   │   ├── dom.js      #   遮罩层 DOM 构建
+│   │   ├── viewport.js #   画布、缩放、平移、旋转辅助、坐标
+│   │   ├── history.js  #   快照、字节预算、撤销/重做
+│   │   ├── layers.js   #   图层管理、重绘、图层面板
+│   │   ├── placement.js#   导入图片放置
+│   │   ├── tools.js    #   画笔/橡皮/吸管/合成画布
+│   │   ├── crop.js     #   裁剪
+│   │   ├── objects.js  #   文字/形状/钢笔/选择与手柄
+│   │   └── events.js   #   鼠标/键盘事件、UI 更新
 │   ├── background.js   # 后台服务：调用鲜艺抠图 HTTP API
-│   ├── popup.js        # 弹窗逻辑（配置默认值 DEFAULTS）
-│   ├── shared/         # 共享模块：默认配置、宿主 DOM 选择器、二进制/base64 转换
+│   ├── popup.js        # 弹窗逻辑（配置校验、「自检」、「最近一次错误」）
+│   ├── shared/         # 跨文件共享模块
+│   │   ├── config.js       # 配置唯一真源 + mergeConfig 归一化
+│   │   ├── selectors.js    # 宿主 DOM 选择器契约表 + probeHost 自检
+│   │   ├── host-adapter.js # 宿主适配层：读节点/写 file input/等新建节点
+│   │   ├── error-report.js # 错误边界：落盘 + 节流提示
+│   │   ├── bytes.js        # base64 ↔ bytes ↔ File
+│   │   ├── image-math.js   # 纯计算（颜色/比例/白底布局）
+│   │   └── layer-logic.js  # 图层恢复判定（快照端与恢复端共用）
 │   └── entries/        # esbuild 打包入口
-│       ├── content.js  # 先加载 editor.js，再加载 content.js
+│       ├── content.js  # 先加载 editor/index.js，再加载 content.js
 │       ├── background.js
 │       └── popup.js
 ├── dist/               # 构建产物（npm run build 生成；扩展实际加载）
 ├── icons/              # 插件图标
-├── tests/              # 扩展侧测试目录
 └── gen_icon.py         # 图标生成脚本
 ```
 
 仓库根目录（构建与测试工具链）：
 
 ```
-iwb-plaus/               # 仓库根（构建与测试工具链）
-├── package.json         # 脚本：build / watch / lint / test / test:e2e / verify / pack
-├── scripts/build.mjs    # esbuild 构建脚本（--watch 监听；--e2e 组装 build/e2e-ext/）
-├── eslint.config.js     # ESLint 规则
-├── vitest.config.js     # Vitest 配置（单测目录 tests/unit/**）
-├── .gitignore           # 忽略 node_modules/、build/、test-results/、coverage/ 等
-└── PLAN.md              # 修订计划
+iwb-plaus/                 # 仓库根（构建与测试工具链）
+├── package.json           # 脚本：build / watch / lint / test / test:e2e / version:bump / pack / verify
+├── scripts/build.mjs      # esbuild 构建（--watch 监听；--e2e 组装 build/e2e-ext/）
+├── scripts/pack.mjs       # 打包可分发 zip（只含 manifest/dist/popup.html/styles.css/icons）
+├── scripts/bump-version.mjs # 同步 manifest 与 package 版本号，打印打标签步骤
+├── eslint.config.js       # ESLint 规则（no-undef 为 error，抓模块化漏 import）
+├── vitest.config.js       # Vitest 配置
+├── playwright.config.js   # Playwright 配置（扩展 e2e）
+├── .prettierrc            # 格式化风格（与现有代码一致：无分号 / 单引号）
+├── tests/                 # 单测 tests/unit/**（75 项）+ 扩展 e2e tests/e2e/**（8 项）
+├── .gitignore             # 忽略 node_modules/、build/、test-results/、coverage/ 等
+└── PLAN.md                # 修订计划与执行状态
 ```
 
 ### 图层架构（v2.2.0）
@@ -257,6 +279,7 @@ iwb-plaus/               # 仓库根（构建与测试工具链）
 
 > 版本号与标签严格一致：`manifest.json` 的 `version` = git 标签（`npm run version:bump -- <major|minor|patch|set>` 同步改两处）。v2.7.0 → v2.16.1 期间的提交细节见 `git log v2.16.1`（基线标签指向 b708ab0）。
 
+- **v3.0.0（架构重构）**：`editor.js`（4155 行单文件）拆为 `src/editor/` 11 个模块（state / index / dom / viewport / history / placement / tools / crop / objects / layers / events，共 4288 行）—— `state.js` 是唯一状态所有者（持有 `S` 与 `runtime.el`，因 ES 模块 import 绑定不可重新赋值，`el` 改用可变持有对象），跨模块引用全部显式 import 并由 ESLint `no-undef`（error 级）守护漏 import；新增 **宿主适配层 `shared/host-adapter.js`**（读节点图片 / 判定形态 / 写回 file input / 等待宿主新建节点 / DOM 自检），`content.js` 以别名导入保持原调用名、宿主改版时的改动面收敛到 `selectors.js` + `host-adapter.js`；新增 **错误边界 `shared/error-report.js`**（未处理异常与未捕获 Promise 落盘 + 同类 10 秒节流提示），popup 增加「最近一次错误」可查看与清除。验证：ESLint 0 error、75 项单测、8 条扩展 e2e。
 - **v2.18.0（性能与内存）**：历史快照分级 —— `shared/layer-logic.js` 的 `restorePath()` 成为快照端与恢复端的**共同判定**，恢复时会按几何重绘的图层（原图层/导入图层）不再拍像素，而这些字节恢复时本来就不会被读取；拖拽结束只用于"有没有变化"比对的快照改为纯元数据（`snapshotState({metaOnly})` —— 比对从不读像素，原先每次手势仍做全量 `getImageData`）；历史栈由"固定 50 条"改为"50 条 + 128MB 字节"双预算（`pushHistory`），`history` 与 `redoStack` 都生效；新增 `window.__iwbEditor.__stats()` 观测口（快照次数、`getImageData` 次数、累计像素字节、当前历史占用）；`hexToRgb/rgbToHex/parseRatio` 并入 `shared/image-math.js`、`isDrawableLayer` 并入 `shared/layer-logic.js`，连同"快照跳过的像素恢复端必不读取"这条不变量都有单测守护。
 - **v2.17.0（工具链 + 止血）**：引入构建与测试链路 —— esbuild 把 `src/` 打包到 `dist/`（manifest/popup 指向产物）、ESLint（`no-undef` 为 error，为后续拆分抓漏 import）、Vitest 43 项单测、Playwright 扩展 e2e 7 项（真实加载扩展跑完抠图/白底/替换/编辑器/自检），`npm run verify` 一键全检；配置默认值三处合一（`shared/config.js` + `mergeConfig`），修复「内容占比可被存成 >1」「API 地址尾斜杠与非法协议」；宿主 DOM 选择器集中到 `shared/selectors.js` 并加 `probeHost()` 自检 —— 关键选择器失效时启动告警 + popup 新增「自检」按钮列出命中矩阵；工具条跟随由每帧扫描改为 MutationObserver + 100ms 节流（DOM 扫描约 60 次/秒 → 10 次/秒）；新建节点注入改为**点击前**采集已有节点（原逻辑在宿主同步建节点时会漏判、白白退化成粘贴兜底），等待新节点改用 `setTimeout`（后台标签页 rAF 会被暂停）；popup 数值校验补全、版本号改为读 manifest（原硬编码 v1.1.0）；base64/bytes/File 转换与白底布局计算抽到 `shared/` 以便单测。
 - **v2.16.1（基线）**：当前稳定状态概括 — 图层可选中/可移动/可缩放/可旋转（位图层、导入图片、空白层统一为 drawable）；像素级图层拾取；选框跟随非透明内容边界；四角圆弧旋转手柄（悬停旋转光标，Shift 按 15° 吸附，位图层/形状/文字均可旋转，支持撤销）；工具条独立悬浮化（不再注入应用 React DOM，修复拖动滞后与气泡复用问题；编辑器打开时隐藏、无工具节点不显示）；空白画布按钮（空图片节点按预设尺寸建图并打开编辑器）；编辑器多轮 UI 改版（顶部工具栏 + 快捷键徽标 + 左侧参数面板 + 7 档画笔预设 + 裁剪三行布局等）。

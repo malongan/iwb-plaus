@@ -11,7 +11,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import {fileURLToPath} from 'node:url'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(root, '..')
@@ -21,7 +21,7 @@ const pkgPath = path.join(repo, 'package.json')
 const [, , mode, explicit] = process.argv
 
 function bump(version, kind) {
-  const [maj, min, pat] = version.split('.').map((n) => parseInt(n, 10))
+  const [maj, min, pat] = version.split('.').map(n => parseInt(n, 10))
   if (kind === 'major') return `${maj + 1}.0.0`
   if (kind === 'minor') return `${maj}.${min + 1}.0`
   if (kind === 'patch') return `${maj}.${min}.${pat + 1}`
