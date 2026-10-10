@@ -531,6 +531,9 @@ import { isDrawableLayer } from '../shared/layer-logic.js'
   export function hideTextInput() {
     const input = runtime.el.querySelector('.iwb-editor-text-input')
     if (input) {
+      // 必须先 blur：只隐藏不清焦点的话，焦点还留在隐藏的 input 上，
+      // 之后按 Esc 会被 isTyping() 当成"正在输入文字"吞掉（清不掉选中态）
+      if (document.activeElement === input) input.blur()
       input.style.display = 'none'
       input.value = ''
     }

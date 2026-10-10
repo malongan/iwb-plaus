@@ -152,7 +152,8 @@ import { isDrawableLayer, needsPixelSnapshot, restorePath } from '../shared/laye
 
   export function undo() {
     if (S.placingImage) return
-    if (S.isDrawing || S.textDrag || S.shapeDrag) return
+    // bitmapDrag 与 textDrag/shapeDrag 对称：位图层拖拽进行中不允许撤销
+    if (S.isDrawing || S.textDrag || S.shapeDrag || S.bitmapDrag) return
     if (S.history.length === 0) return
     pushHistory(S.redoStack, snapshotState())
     restoreState(S.history.pop())
@@ -160,7 +161,7 @@ import { isDrawableLayer, needsPixelSnapshot, restorePath } from '../shared/laye
 
   export function redo() {
     if (S.placingImage) return
-    if (S.isDrawing || S.textDrag || S.shapeDrag) return
+    if (S.isDrawing || S.textDrag || S.shapeDrag || S.bitmapDrag) return
     if (S.redoStack.length === 0) return
     pushHistory(S.history, snapshotState())
     restoreState(S.redoStack.pop())

@@ -3323,6 +3323,7 @@
   function hideTextInput() {
     const input = runtime.el.querySelector(".iwb-editor-text-input");
     if (input) {
+      if (document.activeElement === input) input.blur();
       input.style.display = "none";
       input.value = "";
     }
@@ -4211,14 +4212,14 @@
   }
   function undo() {
     if (S.placingImage) return;
-    if (S.isDrawing || S.textDrag || S.shapeDrag) return;
+    if (S.isDrawing || S.textDrag || S.shapeDrag || S.bitmapDrag) return;
     if (S.history.length === 0) return;
     pushHistory(S.redoStack, snapshotState());
     restoreState(S.history.pop());
   }
   function redo() {
     if (S.placingImage) return;
-    if (S.isDrawing || S.textDrag || S.shapeDrag) return;
+    if (S.isDrawing || S.textDrag || S.shapeDrag || S.bitmapDrag) return;
     if (S.redoStack.length === 0) return;
     pushHistory(S.history, snapshotState());
     restoreState(S.redoStack.pop());

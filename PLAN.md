@@ -23,6 +23,7 @@ git checkout v2.16.1            # 随时回到推荐稳定版
 | 收尾 | T23 之后的加固：`bindIf()` 绑定守卫、死代码清理（lint 7 warning → 0）、注释修正 | ✅ | `v3.0.1` |
 | 收尾2 | 交互 e2e 9→13 + `onMouseMove/onMouseUp` 拆分（编排器 + 33 个处理器） | ✅ | `v3.0.2` |
 | 收尾3 | 拖拽路径 e2e 13→17 + `onCanvasHover` 拆分 + 分发表防坑注释 | ✅ | `v3.0.3` |
+| 收尾4 | 拖拽用例断言强化 + `undo/redo` 补 `bitmapDrag` 守卫 + `hideTextInput` 先 blur | ✅ | `v3.0.4` |
 
 **与原方案的两处偏差（都是为了可验证性）：**
 
