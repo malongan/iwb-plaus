@@ -224,7 +224,7 @@ iwb-plaus/                 # 仓库根（构建与测试工具链）
 ├── vitest.config.js       # Vitest 配置
 ├── playwright.config.js   # Playwright 配置（扩展 e2e）
 ├── .prettierrc            # 格式化风格（与现有代码一致：无分号 / 单引号）
-├── tests/                 # 单测 tests/unit/**（75 项）+ 扩展 e2e tests/e2e/**（13 项）
+├── tests/                 # 单测 tests/unit/**（75 项）+ 扩展 e2e tests/e2e/**（17 项）
 ├── .gitignore             # 忽略 node_modules/、build/、test-results/、coverage/ 等
 └── PLAN.md                # 修订计划与执行状态
 ```
@@ -279,6 +279,7 @@ iwb-plaus/                 # 仓库根（构建与测试工具链）
 
 > 版本号与标签严格一致：`manifest.json` 的 `version` = git 标签（`npm run version:bump -- <major|minor|patch|set>` 同步改两处）。v2.7.0 → v2.16.1 期间的提交细节见 `git log v2.16.1`（基线标签指向 b708ab0）。
 
+- **v3.0.3（拖拽路径覆盖 + 悬停拆分）**：扩展 e2e 13→17 条，补齐拆分时零覆盖的 4 条拖拽路径（位图层拖拽、文字拖拽、抓手平移、导入图片为新图层的放置链路，全部为像素级/transform 断言）；`onCanvasHover` 60→11 行编排器 + 9 个 hover 处理器（`S.drawCanvasCursor` 调用 18→18）；在三张分发表上方补两条防坑注释（依赖 function 声明提升、勿改 const 箭头；守卫不对称是原实现如此）。调试记录：文字要用**中心**拖（原点会命中缩放手柄）；图片放置在 confirm 之前不会 +1，且 1×1 图的放置框中心距手柄仅 8px，导入图需 ≥32×32。验证：ESLint 0 problems、75 项单测、17 条扩展 e2e。
 - **v3.0.2（交互覆盖 + 收尾拆分）**：扩展 e2e 9→13 条 —— 新增钢笔 / 文字 / 矩形 / 裁剪的像素级用例（连同画笔共覆盖 5 个工具的主交互路径）；有安全网之后清掉钢笔路径两处冗余（重复查表、重复 `preventDefault`）；`onMouseMove` 140→32 行、`onMouseUp` 131→27 行，改成与 `onMouseDown` 一致的「编排器 + 按模式/工具的处理器」结构（新增 33 个处理器，其中 mousedown 12 / mousemove 12 / mouseup 9），`events.js` 最大函数从 140 降到 60。等价性核对：`addEventListener` 调用 53→53、导出 9→9、`S.` 属性集合完全一致（仅 `S.tool` 计数因分发表统一读取而减少）。验证：ESLint 0 problems、75 项单测、13 条扩展 e2e。
 - **v3.0.1（加固与清理）**：事件绑定全部走 `bindIf()` —— 原实现是 `querySelector(...).addEventListener` 直接连写，DOM 里少一个元素就会抛 TypeError 并**中断之后的所有绑定**（表现为“某个按钮突然全都不响应”），现在缺元素只告警一次并跳过该绑定；同时清理全部死代码（`bitmapHandlePoints` / `setLayerOpacity` / `ROT_HANDLE_OFFSET` / 未使用的 `drawable` 与 `cx/cy` / 未使用参数），**ESLint 从 7 条 warning 降到 0 problems**；并修正 `redrawBitmapLayer` 头上张冠李戴的注释、给 `setActiveLayer` 补注释。验证：ESLint 0 problems、75 项单测、9 条扩展 e2e。
 - **v3.0.0（架构重构）**：`editor.js`（4155 行单文件）拆为 `src/editor/` 11 个模块（state / index / dom / viewport / history / placement / tools / crop / objects / layers / events，共 4288 行）—— `state.js` 是唯一状态所有者（持有 `S` 与 `runtime.el`，因 ES 模块 import 绑定不可重新赋值，`el` 改用可变持有对象），跨模块引用全部显式 import 并由 ESLint `no-undef`（error 级）守护漏 import；新增 **宿主适配层 `shared/host-adapter.js`**（读节点图片 / 判定形态 / 写回 file input / 等待宿主新建节点 / DOM 自检），`content.js` 以别名导入保持原调用名、宿主改版时的改动面收敛到 `selectors.js` + `host-adapter.js`；新增 **错误边界 `shared/error-report.js`**（未处理异常与未捕获 Promise 落盘 + 同类 10 秒节流提示），popup 增加「最近一次错误」可查看与清除。**T23 大函数消解**：`bindEvents` 250→18 行（拆出 16 个 `bind*` 分组）、`onMouseDown` 188→20 行（11 个工具处理器 + `MOUSE_DOWN_HANDLERS` 分发表）、`redrawBitmapLayer` 21→5 行（`resolveSourceBox`/`paintTransformed`），最大函数 250→166（-34%），事件绑定数 64→64 逐项核对无丢失。验证：ESLint 0 error、75 项单测、9 条扩展 e2e（含编辑器画笔→撤销→重做→导出的像素级用例）。

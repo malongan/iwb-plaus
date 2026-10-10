@@ -1,6 +1,6 @@
 {
   "name": "iwb-plaus",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "private": true,
   "description": "IWB 鲜艺抠图节点浏览器扩展 - 构建、检查与测试工具链",
   "type": "module",

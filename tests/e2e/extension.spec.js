@@ -370,3 +370,224 @@ test('编辑器行为：裁剪框拖拽 → 确认后图层尺寸真的变小（
   expect(after.h).toBeLessThan(before.h)
   await page.close()
 })
+
+/**
+ * 拖拽路径覆盖：placement / panning / bitmapDrag / textDrag 这些分支
+ * 在 onMouseMove/onMouseUp 拆分时完全没有自动化覆盖，这里补齐。
+ */
+
+/** 每个位图层的非透明像素包围盒 + 红色像素数（用于挑出画的那一层） */
+async function layerBoxes(page) {
+  return page.evaluate(() => {
+    const out = []
+    for (const c of document.querySelectorAll('.iwb-editor-layer-canvas')) {
+      if (!c.width || !c.height) continue
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+      let minX = c.width
+      let minY = c.height
+      let maxX = -1
+      let maxY = -1
+      let red = 0
+      for (let y = 0; y < c.height; y++) {
+        for (let x = 0; x < c.width; x++) {
+          const i = (y * c.width + x) * 4
+          if (d[i + 3] > 8) {
+            if (x < minX) minX = x
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+            if (d[i] > 200 && d[i + 1] < 120 && d[i + 2] < 120) red++
+          }
+        }
+      }
+      out.push({ w: c.width, h: c.height, red, box: maxX < 0 ? null : { minX, minY, maxX, maxY } })
+    }
+    return out
+  })
+}
+
+/** 矢量对象（文字/形状/钢笔）合并的非透明像素包围盒 */
+async function vectorContentBox(page) {
+  return page.evaluate(() => {
+    let minX = 1e9
+    let minY = 1e9
+    let maxX = -1
+    let maxY = -1
+    for (const c of document.querySelectorAll('.iwb-editor-vec-canvas')) {
+      if (!c.width || !c.height) continue
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+      for (let y = 0; y < c.height; y++) {
+        for (let x = 0; x < c.width; x++) {
+          if (d[(y * c.width + x) * 4 + 3] > 8) {
+            if (x < minX) minX = x
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+          }
+        }
+      }
+    }
+    return maxX < 0 ? null : { minX, minY, maxX, maxY }
+  })
+}
+
+/** 覆盖层（选中框 / 裁剪遮罩 / 放置预览）的非透明像素数 */
+async function overlayPixels(page) {
+  return page.evaluate(() => {
+    const c = document.querySelector('.iwb-editor-crop-overlay')
+    if (!c || !c.width || !c.height) return 0
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+    let n = 0
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 8) n++
+    return n
+  })
+}
+
+/** 画布栈的 transform（平移用） */
+async function stackTransform(page) {
+  return page.evaluate(() => document.querySelector('.iwb-editor-canvas-stack').style.transform || '')
+}
+
+test('编辑器行为：位图层拖拽真的移动内容 → 撤销复位（像素级）', async () => {
+  const page = await openFixture()
+  const { cx, cy } = await openEditorCentered(page)
+
+  // 先在画笔层画一笔（base 层默认锁定，画笔层才可被选中拖动）
+  await page.locator('.iwb-editor-brush-preset[data-brush-size="8"]').click()
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + 15, cy + 10, { steps: 4 })
+  await page.mouse.up()
+  const drawn = (await layerBoxes(page)).find((l) => l.red > 0)
+  expect(drawn).toBeTruthy()
+  const before = drawn.box
+
+  // 切选择工具，拖动该层内容
+  await page.locator('.iwb-editor-tool[data-tool="select"]').click()
+  await page.mouse.move(cx + 5, cy + 5)
+  await page.mouse.down()
+  await page.mouse.move(cx + 45, cy + 35, { steps: 6 })
+  await page.mouse.up()
+
+  await expect
+    .poll(async () => {
+      const l = (await layerBoxes(page)).find((x) => x.red > 0)
+      return l ? l.box.minX - before.minX : -999
+    }, { timeout: 5_000 })
+    .toBeGreaterThan(0)
+
+  // 撤销 → 内容回到原位
+  await page.locator('.iwb-editor-action[data-action="undo"]').click()
+  await expect
+    .poll(async () => {
+      const l = (await layerBoxes(page)).find((x) => x.red > 0)
+      return l ? l.box.minX : -1
+    }, { timeout: 5_000 })
+    .toBe(before.minX)
+  await page.close()
+})
+
+test('编辑器行为：抓手平移画布 → 适应按钮复位（transform 断言）', async () => {
+  const page = await openFixture()
+  await openEditorCentered(page)
+  const initial = await stackTransform(page)
+
+  await page.locator('.iwb-editor-tool[data-tool="hand"]').click()
+  const box = await page.locator('.iwb-editor-layer-canvas').first().boundingBox()
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + 120, cy + 60, { steps: 8 })
+  await page.mouse.up()
+
+  const moved = await stackTransform(page)
+  expect(moved).not.toBe(initial)
+
+  await page.locator('.iwb-editor-zoom-fit[data-action="zoomFit"]').click()
+  await expect.poll(() => stackTransform(page), { timeout: 5_000 }).toBe(initial)
+  await page.close()
+})
+
+test('编辑器行为：文字拖拽移动 → 撤销复位（像素级）', async () => {
+  const page = await openFixture()
+  const { cx, cy } = await openEditorCentered(page)
+
+  await page.locator('.iwb-editor-tool[data-tool="text"]').click()
+  await page.mouse.click(cx - 40, cy - 20)
+  await page.locator('.iwb-editor-text-input').fill('AB')
+  await page.keyboard.press('Enter')
+  const before = await vectorContentBox(page)
+  expect(before).toBeTruthy()
+
+  // 从文字【中心】拖：点文字原点会命中缩放手柄而不是移动（调试时踩过）
+  const box = await page.locator('.iwb-editor-layer-canvas').first().boundingBox()
+  const scale = box.width / 64
+  const sx = box.x + ((before.minX + before.maxX) / 2) * scale
+  const sy = box.y + ((before.minY + before.maxY) / 2) * scale
+
+  await page.locator('.iwb-editor-tool[data-tool="select"]').click()
+  await page.mouse.move(sx, sy)
+  await page.mouse.down()
+  await page.mouse.move(sx + 40, sy + 30, { steps: 6 })
+  await page.mouse.up()
+
+  await expect
+    .poll(async () => {
+      const b = await vectorContentBox(page)
+      return b ? b.minX - before.minX : -999
+    }, { timeout: 5_000 })
+    .toBeGreaterThan(0)
+
+  await page.locator('.iwb-editor-action[data-action="undo"]').click()
+  await expect
+    .poll(async () => {
+      const b = await vectorContentBox(page)
+      return b ? b.minX : -1
+    }, { timeout: 5_000 })
+    .toBe(before.minX)
+  await page.close()
+})
+
+test('编辑器行为：导入图片为新图层 → 放置框拖拽 → 确认落位（像素级）', async () => {
+  const page = await openFixture()
+  const { cx, cy } = await openEditorCentered(page)
+  const beforeLayers = (await layerBoxes(page)).length
+
+  // 用 32×32 生成图：1×1 会被压成约 10×10 的放置框，中心距 n/s/e/w 手柄只有 8px，
+  // 按下会命中手柄变成缩放而不是移动（几何事实，写死 1×1 会踩坑）
+  const png = await page.evaluate(() => {
+    const c = document.createElement('canvas')
+    c.width = 32
+    c.height = 32
+    const g = c.getContext('2d')
+    g.fillStyle = '#22ff44'
+    g.fillRect(4, 4, 24, 24)
+    return c.toDataURL('image/png')
+  })
+  const pngBuf = Buffer.from(png.split(',')[1], 'base64')
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.locator('.iwb-editor-layer-add-btn[data-action="addBitmapLayer"]').click()
+  ])
+  await chooser.setFiles({ name: 'import.png', mimeType: 'image/png', buffer: pngBuf })
+
+  // 放置模式：覆盖层上出现放置预览（位图层 canvas 此时还没建，确认放置后才落层）
+  await expect.poll(() => overlayPixels(page), { timeout: 5_000 }).toBeGreaterThan(0)
+  await expect.poll(async () => (await layerBoxes(page)).length, { timeout: 2_000 }).toBe(beforeLayers)
+
+  // 在放置框内拖动（覆盖 onPlacementDragMove / onPlacementMouseUp），
+  // 再用 Enter 确认（onKeydown 的放置分支）—— 比"点画布外"稳，不受坐标/手柄半径影响
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + 60, cy + 40, { steps: 6 })
+  await page.mouse.up()
+  await page.keyboard.press('Enter')
+
+  await expect.poll(async () => (await layerBoxes(page)).length, { timeout: 5_000 }).toBe(beforeLayers + 1)
+
+  // 落位后的新图层确实带着导入的内容（非透明像素）
+  const boxes = await layerBoxes(page)
+  expect(boxes[boxes.length - 1].box).toBeTruthy()
+  await page.close()
+})
