@@ -1,0 +1,30 @@
+{
+  "name": "iwb-plaus",
+  "version": "2.17.0",
+  "private": true,
+  "description": "IWB 鲜艺抠图节点浏览器扩展 - 构建、检查与测试工具链",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"iwb-cutout-extension/src/**/*.js\" \"tests/**/*.js\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node scripts/build.mjs --e2e && playwright test",
+    "version:bump": "node scripts/bump-version.mjs",
+    "pack": "node scripts/build.mjs && node scripts/pack.mjs",
+    "verify": "npm run lint && npm run test && npm run build && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.49.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.4.0",
+    "vitest": "^2.1.0"
+  }
+}

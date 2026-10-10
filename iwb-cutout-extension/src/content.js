@@ -9,32 +9,30 @@
  *   这样会走应用自身的 onChange 处理器，正确更新 React 状态
  */
 
+import { CONFIG_KEY, DEFAULT_CONFIG, mergeConfig } from './shared/config.js'
+import { toFile } from './shared/bytes.js'
+import { SEL, EXT_SEL, byNodeId, probeHost, probeProblems } from './shared/selectors.js'
+import { fitRect } from './shared/image-math.js'
+
 (function () {
   'use strict'
 
   // ============ 配置 ============
-  let config = {
-    crop: true,
-    autoConnect: true,
-    replaceMode: false,
-    autoWhiteBg: false,   // 抠图后自动生成白底图
-    bgSize: 800,          // 白底画布尺寸（宽高一致）
-    bgRatio: 0.85,        // 内容占画布比例（0~1）
-    bgMode: 'white'       // 大图背景：white=白底 / transparent=透明底
-  }
+  // 默认值与归一化全部来自 shared/config.js（唯一真源）
+  let config = { ...DEFAULT_CONFIG }
 
   function loadConfig() {
     chrome.runtime.sendMessage({ type: 'GET_CONFIG' }, (resp) => {
       if (resp && resp.success && resp.config) {
-        config = resp.config
+        config = mergeConfig(resp.config)
       }
     })
   }
   loadConfig()
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.iwb_cutout_config) {
-      config = { ...config, ...(changes.iwb_cutout_config.newValue || {}) }
+    if (area === 'local' && changes[CONFIG_KEY]) {
+      config = mergeConfig({ ...config, ...(changes[CONFIG_KEY].newValue || {}) })
     }
   })
 
@@ -66,9 +64,9 @@
   /** 从 DOM 节点读取图片数据 */
   function getImageFromNode(nodeEl) {
     // 兼容图片元素自身带 class，以及 class 挂在图片容器上的两种结构。
-    let img = nodeEl.querySelector('img.iwb-ref-single, .iwb-ref-single img, .iwb-ref-show img')
+    let img = nodeEl.querySelector(SEL.refImage)
     // 输出节点的图片
-    if (!img) img = nodeEl.querySelector('img.iwb-out-cell-img, .iwb-out-cell-img img, img.iwb-result-thumb, .iwb-result-thumb img')
+    if (!img) img = nodeEl.querySelector(SEL.outImage)
     if (!img) return null
 
     const src = img.currentSrc || img.src
@@ -151,27 +149,16 @@
       ctx.fillRect(0, 0, size, size)
     }
 
-    // 内容等比缩放到 size*ratio，居中
-    const maxLen = size * ratio
-    const scale = Math.min(maxLen / img.width, maxLen / img.height)
-    const w = img.width * scale
-    const h = img.height * scale
-    const x = (size - w) / 2
-    const y = (size - h) / 2
+    // 内容等比缩放到 size*ratio，居中（几何计算见 shared/image-math.js，可单测）
+    const { x, y, w, h } = fitRect(img.width, img.height, size, size, ratio)
     ctx.drawImage(img, x, y, w, h)
 
     return canvas.toDataURL('image/png')
   }
 
-  /** base64 转 File 对象 */
+  /** base64 转 File 对象（实现见 shared/bytes.js，这里保留原调用签名） */
   function base64ToFile(base64Data, filename) {
-    const parts = base64Data.split(',')
-    const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/png'
-    const base64 = parts[1] || parts[0]
-    const binary = atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    return new File([bytes], filename || 'cutout.png', { type: mime })
+    return toFile(base64Data, filename || 'cutout.png')
   }
 
   /** 执行抠图 */
@@ -361,7 +348,7 @@
   function getNodeImageName(nodeEl) {
     // 从 localStorage 读取节点数据获取文件名
     try {
-      const wsData = JSON.parse(localStorage.getItem('iwb_web_workspaces') || '{}')
+      const wsData = JSON.parse(localStorage.getItem(SEL.workspacesKey) || '{}')
       const ws = (wsData.workspaces || []).find(w => w.id === (wsData.activeId || wsData.workspaces?.[0]?.id))
       const nodeId = nodeEl.getAttribute('data-node-id')
       const node = (ws?.nodes || []).find(n => n.id === nodeId)
@@ -374,7 +361,7 @@
   /** 替换模式：通过节点头部的 file input 注入抠图结果 */
   async function injectReplaceImage(nodeEl, cutoutBase64, filename) {
     // 方案 A: 使用节点头部的「替换图片」file input
-    const headFileInput = nodeEl.querySelector('.iwb-node-headbtns input[type="file"]')
+    const headFileInput = nodeEl.querySelector(SEL.headFileInput)
     if (headFileInput) {
       const file = base64ToFile(cutoutBase64, filename)
       const dt = new DataTransfer()
@@ -385,7 +372,7 @@
     }
 
     // 方案 B: 使用节点 body 的 file input（空节点的上传标签）
-    const bodyFileInput = nodeEl.querySelector('.iwb-ref-emptybox input[type="file"], .iwb-ref-upload input[type="file"]')
+    const bodyFileInput = nodeEl.querySelector(SEL.bodyFileInput)
     if (bodyFileInput) {
       const file = base64ToFile(cutoutBase64, filename)
       const dt = new DataTransfer()
@@ -402,12 +389,13 @@
   /** 新建节点模式：点击工具栏添加 ref 节点，再注入图片 */
   async function injectNewNode(cutoutBase64, filename) {
     // 方案 A: 点击工具栏「添加参考图」按钮，然后用 file input 注入
-    const addRefBtn = document.querySelector('[data-tip*="参考图节点"]') ||
-                      document.querySelector('[data-tip*="参考图"]')
+    const addRefBtn = document.querySelector(SEL.addRefBtn)
     if (addRefBtn) {
+      // 必须在点击【之前】记录已有节点：宿主若同步创建节点，
+      // 点击后再记录会把它误判成"本来就有"，等待超时后退化到粘贴兜底。
+      const before = Array.from(document.querySelectorAll(SEL.node))
       addRefBtn.click()
-      // 等待 React 渲染新节点
-      const newNode = await waitForNewRefNode()
+      const newNode = await waitForNewRefNode(before)
       if (newNode) {
         const fileInput = newNode.querySelector('input[type="file"]')
         if (fileInput) {
@@ -425,29 +413,29 @@
     await injectViaPasteEvent(cutoutBase64, filename, false)
   }
 
-  /** 等待新创建的空 ref 节点出现在 DOM 中 */
-  function waitForNewRefNode(timeout = 2000) {
+  /**
+   * 等待新创建的空 ref 节点出现在 DOM 中
+   * @param {Element[]} [existing] 触发创建之前就已存在的节点（必须在点击前采集）
+   */
+  function waitForNewRefNode(existing, timeout = 2000) {
+    const existingNodes = Array.isArray(existing) ? existing : Array.from(document.querySelectorAll(SEL.node))
     return new Promise((resolve) => {
       const startTime = Date.now()
-      // 记录当前已有的节点数
-      const existingNodes = document.querySelectorAll('.iwb-node[data-node-id]')
 
       function check() {
-        const currentNodes = document.querySelectorAll('.iwb-node[data-node-id]')
-        // 找到新出现的空 ref 节点（有上传标签但没有图片）
+        const currentNodes = document.querySelectorAll(SEL.node)
+        // 找到新出现的空 ref 节点（没有图片的节点 = 空 ref 节点）
         for (const node of currentNodes) {
-          if (!node.querySelector('.iwb-ref-single, .iwb-ref-show img')) {
-            // 没有图片的节点 = 空 ref 节点
-            if (!Array.from(existingNodes).includes(node)) {
-              resolve(node)
-              return
-            }
+          if (!node.querySelector(SEL.refImage) && !existingNodes.includes(node)) {
+            resolve(node)
+            return
           }
         }
         if (Date.now() - startTime > timeout) {
           resolve(null)
         } else {
-          requestAnimationFrame(check)
+          // 用定时器而不是 rAF：后台/离屏标签页里 rAF 可能被完全暂停
+          setTimeout(check, 50)
         }
       }
       check()
@@ -549,12 +537,12 @@
       btn.classList.toggle('processing', processing)
       btn.style.pointerEvents = processing ? 'none' : ''
     }
-    nodeEl.querySelectorAll('.iwb-cutout-btn, .iwb-whitebg-btn, .iwb-compress-btn, .iwb-editor-btn-icon').forEach(mark)
+    nodeEl.querySelectorAll(SEL.extButtons).forEach(mark)
     // 新版：按钮位于浮动气泡栏，随选中节点渲染在节点外部
-    document.querySelectorAll('.iwb-node-floatbar').forEach((bar) => {
+    document.querySelectorAll(SEL.floatbar).forEach((bar) => {
       const n = findFloatbarNode(bar)
       if (n && n.getAttribute('data-node-id') === id) {
-        bar.querySelectorAll('.iwb-cutout-btn, .iwb-whitebg-btn, .iwb-compress-btn, .iwb-editor-btn-icon').forEach(mark)
+        bar.querySelectorAll(SEL.extButtons).forEach(mark)
       }
     })
   }
@@ -605,7 +593,7 @@
 
   // ============ 空白画布（供标注绘制插图） ============
   function isEmptyRefNode(nodeEl) {
-    return !!(nodeEl.querySelector('.iwb-ref-emptybox') || (nodeEl.querySelector('.iwb-ref-body') && !nodeEl.querySelector('.iwb-ref-single, .iwb-ref-show img')))
+    return !!(nodeEl.querySelector(SEL.emptyBox) || (nodeEl.querySelector(SEL.refBody) && !nodeEl.querySelector(SEL.refImage)))
   }
   // 与应用侧常用尺寸一致：比例 × 清晰度（1K/2K/4K）
   const BLANK_RES_KEYS = ['1K']
@@ -707,10 +695,9 @@
       existing.remove()
     }
     const liveNode = () => {
-      const sel = document.querySelector('.iwb-node.iwb-node-selected[data-node-id]')
+      const sel = document.querySelector(SEL.nodeSelected)
       if (sel) return sel
-      const byId = nodeId ? document.querySelector('.iwb-node[data-node-id="' + nodeId + '"]') : null
-      return byId || nodeEl
+      return byNodeId(nodeId) || nodeEl
     }
     const b = document.createElement('button')
     b.className = 'iwb-node-del iwb-blank-canvas-btn'
@@ -729,7 +716,7 @@
   /** 判断节点是否带图片（ref 有图 / out 输出图） */
   function nodeHasImage(nodeEl) {
     // 只处理真实图片节点：参考图(ref)与输出(out)；不含 prompt/llm 等缩略图
-    return !!(nodeEl.querySelector('.iwb-ref-single, .iwb-ref-body .iwb-ref-show img') || nodeEl.querySelector('.iwb-out-cell-img, .iwb-result-thumb'))
+    return !!nodeEl.querySelector(SEL.anyImage)
   }
 
   /** 在 host 内创建全部工具按钮（抠图/白底/压缩/编辑）。重复调用安全（已有则跳过）。 */
@@ -740,14 +727,13 @@
     if (existing) {
       // 气泡栏可能被应用复用：若按钮绑定的不是当前节点，必须移除后重新注入
       if (existing.dataset.nodeId === nodeId) return
-      host.querySelectorAll('.iwb-cutout-btn, .iwb-whitebg-btn, .iwb-compress-btn, .iwb-editor-btn-icon').forEach(b => b.remove())
+      host.querySelectorAll(SEL.extButtons).forEach(b => b.remove())
     }
     // 点击时优先使用“当前选中的节点”，避免复用气泡栏时绑定到上一个节点
     const liveNode = () => {
-      const sel = document.querySelector('.iwb-node.iwb-node-selected[data-node-id]')
+      const sel = document.querySelector(SEL.nodeSelected)
       if (sel) return sel
-      const byId = nodeId ? document.querySelector('.iwb-node[data-node-id="' + nodeId + '"]') : null
-      return byId || nodeEl
+      return byNodeId(nodeId) || nodeEl
     }
     const make = (cls, content, color, tip, run) => {
       const b = document.createElement('button')
@@ -779,7 +765,7 @@
     if (!br.width || !br.height) return null
     const bx = br.left + br.width / 2
     let best = null, bestScore = Infinity
-    document.querySelectorAll('.iwb-node[data-node-id]').forEach((n) => {
+    document.querySelectorAll(SEL.node).forEach((n) => {
       const r = n.getBoundingClientRect()
       if (!r.width || !r.height) return
       const cx = r.left + r.width / 2
@@ -791,7 +777,7 @@
       }
     })
     if (!best) {
-      const selNode = document.querySelector('.iwb-node.iwb-node-selected[data-node-id]')
+      const selNode = document.querySelector(SEL.nodeSelected)
       if (selNode) return selNode
     }
     return best
@@ -813,12 +799,12 @@
   }
   function updateToolbar() {
     // 图片编辑器打开时隐藏扩展工具条（编辑器为全屏层，工具条不应残留在其上）
-    const editorOverlay = document.getElementById('iwb-editor-overlay')
+    const editorOverlay = document.getElementById(EXT_SEL.editorOverlay.slice(1))
     if (editorOverlay && editorOverlay.style.display && editorOverlay.style.display !== 'none') { hideToolbar(); return }
-    const bar = document.querySelector('.iwb-node-floatbar')
+    const bar = document.querySelector(SEL.floatbar)
     if (!bar) { hideToolbar(); return }
     // 优先使用“当前选中的节点”，其次按气泡位置匹配
-    let nodeEl = document.querySelector('.iwb-node.iwb-node-selected[data-node-id]')
+    let nodeEl = document.querySelector(SEL.nodeSelected)
     if (!nodeEl) nodeEl = findFloatbarNode(bar)
     if (!nodeEl) { hideToolbar(); return }
     ensureToolbar()
@@ -844,16 +830,78 @@
   }
 
   // ============ 初始化 ============
-  // 独立工具条用 requestAnimationFrame 跟随应用气泡栏位置；只改扩展自身 DOM，绝不修改应用 DOM。
+  // 工具条跟随采用「事件驱动 + 节流」，替代原先无条件的 requestAnimationFrame：
+  //   - MutationObserver 负责结构变化（节点出现/消失/类名切换）
+  //   - 定时器负责拖拽、滚动时的位置连续跟随
+  // 两者都经过 100ms 节流，常态下 DOM 扫描从约 60 次/秒降到 10 次/秒，
+  // 页面隐藏时不执行；只改扩展自身 DOM，绝不修改应用 DOM。
+  const TOOLBAR_INTERVAL = 100
+  let toolbarTimer = null
+  let toolbarLastRun = 0
+
+  function runToolbarUpdate() {
+    toolbarLastRun = performance.now()
+    try {
+      updateToolbar()
+    } catch (e) {
+      // 单帧异常不能中断跟随
+    }
+  }
+
+  function scheduleToolbarUpdate() {
+    if (toolbarTimer) return // 已有待执行的更新
+    const wait = Math.max(0, TOOLBAR_INTERVAL - (performance.now() - toolbarLastRun))
+    toolbarTimer = setTimeout(() => {
+      toolbarTimer = null
+      runToolbarUpdate()
+    }, wait)
+  }
+
+  /** 宿主契约一次性自检：关键选择器断裂时给出明确告警（点插件图标可再查） */
+  function runHostProbeOnce() {
+    try {
+      const problems = probeProblems(probeHost())
+      const fatal = problems.filter((p) => p.level === 'error')
+      if (fatal.length) {
+        showToast(
+          `宿主页面结构可能已变化：${fatal.map((p) => p.name).join('、')}（点击插件图标可自检）`,
+          'error'
+        )
+      }
+    } catch (e) { /* 自检失败不影响功能 */ }
+  }
+
   function init() {
     if (!document.body.contains(overlay)) document.body.appendChild(overlay)
     ensureToolbar()
-    const loop = () => {
-      try { updateToolbar() } catch (e) { /* ignore */ }
-      requestAnimationFrame(loop)
+
+    scheduleToolbarUpdate()
+    setInterval(() => { if (!document.hidden) scheduleToolbarUpdate() }, TOOLBAR_INTERVAL)
+
+    if (typeof MutationObserver !== 'undefined' && document.body) {
+      const observer = new MutationObserver(() => scheduleToolbarUpdate())
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style', 'src']
+      })
     }
-    requestAnimationFrame(loop)
+
+    setTimeout(runHostProbeOnce, 3000)
   }
+
+  // popup 的「自检」按钮转发过来的 RUN_PROBE
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.type === 'RUN_PROBE') {
+      try {
+        sendResponse({ success: true, results: probeHost() })
+      } catch (e) {
+        sendResponse({ success: false, error: e.message })
+      }
+    }
+    return false
+  })
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init)
@@ -865,17 +913,18 @@
   window.__iwbCutout = {
     config: () => config,
     cutout: (nodeId) => {
-      const el = document.querySelector(`[data-node-id="${nodeId}"]`)
+      const el = byNodeId(nodeId)
       if (el) performCutout(el)
     },
     whiteBg: (nodeId) => {
-      const el = document.querySelector(`[data-node-id="${nodeId}"]`)
+      const el = byNodeId(nodeId)
       if (el) performWhiteBg(el)
     },
     edit: (nodeId) => {
-      const el = document.querySelector(`[data-node-id="${nodeId}"]`)
+      const el = byNodeId(nodeId)
       if (el) performEditor(el)
     },
-    inject: updateToolbar
+    inject: updateToolbar,
+    probe: () => probeHost()
   }
 })()

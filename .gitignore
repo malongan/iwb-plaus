@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+.npm-cache/
+build/
+test-results/
+playwright-report/
+coverage/
+*.zip

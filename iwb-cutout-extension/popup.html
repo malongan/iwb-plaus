@@ -42,6 +42,14 @@
   .radio-item input { margin-top: 2px; }
   .radio-item label { font-size: 13px; }
   .radio-item .radio-desc { font-size: 11px; color: #656d76; }
+  .probe-result { font-size: 12px; border: 1px solid #d0d7de; border-radius: 6px; padding: 8px 10px; margin-top: 4px; max-height: 160px; overflow: auto; }
+  .probe-item { display: flex; gap: 6px; align-items: flex-start; padding: 2px 0; }
+  .probe-item .mk { flex-shrink: 0; font-weight: 700; }
+  .probe-item.ok .mk { color: #1a7f37; }
+  .probe-item.warn .mk { color: #bf8700; }
+  .probe-item.error .mk { color: #cf222e; }
+  .probe-item.info .mk { color: #656d76; }
+  .probe-item .dt { color: #656d76; }
 </style>
 </head>
 <body>
@@ -156,16 +164,27 @@
         </label>
       </div>
     </div>
+    <div class="section">
+      <div class="section-title">页面自检</div>
+      <div class="row">
+        <div>
+          <label>宿主页面契约检查</label>
+          <div class="desc">检查按钮注入所依赖的选择器是否仍与当前页面匹配</div>
+        </div>
+        <button class="btn btn-secondary" id="probeBtn">自检</button>
+      </div>
+      <div id="probeResult" class="probe-result" hidden></div>
+    </div>
   </div>
 
   <div class="footer">
-    <span class="footer-text">v1.1.0 · 鲜艺抠图 + 白底大图</span>
+    <span class="footer-text"><span id="verText"></span> · 鲜艺抠图 + 白底大图</span>
     <div style="display:flex; gap:8px;">
       <button class="btn btn-secondary" id="testBtn">测试连接</button>
       <button class="btn btn-primary" id="saveBtn">保存</button>
     </div>
   </div>
 
-  <script src="popup.js"></script>
+  <script src="dist/popup.js"></script>
 </body>
 </html>

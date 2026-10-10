@@ -2,21 +2,25 @@
 
 ## 功能
 
-在 **生图工作台** (iwb.maqiart.eu.org) 画布中，为每个图片节点添加三个快捷按钮：
+在 **生图工作台** (iwb.maqiart.eu.org) 画布中，为每个图片节点添加四个快捷按钮：
 
 1. **✂️ 鲜艺AI抠图**：自动调用本地鲜艺抠图软件去除图片背景，结果作为新节点插入画布或替换原图
-2. **🔲 白底大图**：把节点图片（通常为透明图）转成白底大图（默认 800×800，内容占 85% 居中），适合电商主图等场景
+2. **🔲 白底大图**：把节点图片（通常为透明图）转成白底（或透明底）大图（默认 800×800，内容占 85% 居中），适合电商主图等场景
 3. **🖼️ 图片编辑器**：图层化编辑（图层、画笔、裁剪、标注），编辑后可选新建节点或覆盖原图
+4. **压 图片压缩**：把节点图片按配置宽度（默认 1024px）等比缩放并转成 JPEG（默认质量 80%），完成后直接替换原图
+
+空图片节点上工具条只显示 **空白画布** 按钮：按预设尺寸（1K，多种比例）创建空白图并自动打开编辑器，用于插图/标注。
 
 ## 工作流程
 
 ```
 画布中的图片节点 → [抠图按钮] → 读取图片 → 鲜艺抠图API (localhost:30092) → 返回透明背景图 → 注入画布
-                    [白底按钮] → 读取图片 → canvas 本地处理 → 白底 800×800 图 → 注入画布
+                    [白底按钮] → 读取图片 → canvas 本地处理 → 白底/透明底大图 → 注入画布
+                    [压缩按钮] → 读取图片 → canvas 缩放到目标宽度 → JPEG → 替换原图
                     [编辑按钮] → 读取图片 → 弹出编辑器 → 图层编辑/裁剪/标注 → 合并图层 → 新建或覆盖
 ```
 
-白底和编辑器处理完全在浏览器本地用 canvas 完成，无需调用外部 API。
+白底、压缩和编辑器处理完全在浏览器本地用 canvas 完成，无需调用外部 API。
 
 ## 前置条件
 
@@ -26,6 +30,9 @@
 
 ## 安装步骤
 
+> 扩展加载的是构建产物：`manifest.json` 的 service_worker / content_scripts 以及 `popup.html` 引用的都是 `dist/*.js`。
+> **首次加载前请先在仓库根目录执行 `npm run build`**（见下方「开发」），否则 `iwb-cutout-extension/dist/` 不存在，扩展会加载失败。
+
 1. 打开 Chrome / Edge 浏览器
 2. 地址栏输入 `chrome://extensions` (Edge: `edge://extensions`)
 3. 打开右上角「开发者模式」
@@ -33,16 +40,37 @@
 5. 选择 `iwb-cutout-extension` 文件夹
 6. 访问 https://iwb.maqiart.eu.org/ 即可使用
 
+## 开发
+
+源码在仓库根目录的 `iwb-cutout-extension/src/`，esbuild 打包到 `iwb-cutout-extension/dist/`，扩展加载的始终是 `dist/`。
+
+**前置**：Node.js ≥ 20；在仓库根目录执行 `npm install` 安装开发依赖（esbuild、eslint、vitest、playwright 等）。
+
+| 命令 | 说明 |
+|------|------|
+| `npm run build` | esbuild 打包 `src/entries/*` → `iwb-cutout-extension/dist/` |
+| `npm run watch` | 监听 `src/` 变动自动重建 |
+| `npm run lint` | ESLint 静态检查 |
+| `npm run test` | Vitest 单元测试 |
+| `npm run test:e2e` | Playwright 端到端冒烟测试 |
+| `npm run verify` | 依次执行 lint → test → build → test:e2e |
+
+- **改源码，不要直接改 `dist/`**：`dist/` 是构建产物，手工改动会在下次 `npm run build` 时被覆盖。修改 `src/` 后必须重新 `npm run build`，再在 `chrome://extensions` 点扩展的「重新加载」才能生效。
+- 加载目录始终是 `iwb-cutout-extension`（含 `manifest.json`、`styles.css`、`popup.html`、`icons/`、`dist/`）。
+- **e2e 会额外生成 `build/e2e-ext/`**：构建脚本的 `--e2e` 模式（`node scripts/build.mjs --e2e`）把 `manifest.json` 的 content_scripts `matches` 与 `host_permissions` 放宽到 `http://localhost/*`、`http://127.0.0.1/*`，并拷贝 `popup.html`、`styles.css`、`icons/`、`dist/` 组装成独立的测试扩展目录，供 Playwright 在本地 fixture 页面上注入；`build/` 已在 `.gitignore` 中忽略。
+
 ## 使用方法
 
 1. 在画布中创建一个「参考图」节点并上传图片
-2. 节点头部会出现三个按钮：
+2. 选中该节点后，节点气泡栏上方会出现扩展的**独立悬浮工具条**（挂在 `document.body` 上，只跟随应用气泡栏的位置，不修改应用 DOM），从左到右四个按钮：
+   - **绿色「压」**：图片压缩（目标宽度 / 质量见配置，默认 1024px / 80%），完成后**替换原图**
    - **橙色剪刀** ✂️：鲜艺抠图（去背景）
-   - **蓝色方块** 🔲：白底大图（透明图 → 白底 800×800）
+   - **蓝色方块** 🔲：白底大图（透明图 → 白底或透明底 800×800）
    - **紫色编辑** 🖼️：图片编辑器（图层 + 裁剪 + 标注）
 3. 点击按钮 → 等待处理 → 结果自动插入画布
-4. 默认创建新节点；可在插件弹窗中切换为「替换原图」模式
+4. 默认创建新节点；可在插件弹窗中切换为「替换原图」模式（「压」按钮不受该选项影响，始终替换原图）
 5. 开启「抠图后自动转白底」后，点剪刀会直接输出白底大图，跳过透明图
+6. 图片节点没有图片时，工具条上是「空白画布」按钮：选预设尺寸创建空白图并直接进入编辑器
 
 ### 图片编辑器用法（v2.2.0 图层化架构）
 
@@ -110,6 +138,7 @@
   - **选中**：点击任意文字/矩形/箭头/钢笔形状（文字在上层优先命中；实心矩形点内部也能选中）
   - **移动**：选中后直接拖拽
   - **调整**：文字拖 4 角改字号；矩形拖 8 手柄改大小；箭头拖 2 端点改方向长度
+  - **旋转**：位图层、导入图片、形状与文字选中后，四个角外侧显示圆弧旋转手柄，拖拽即旋转（悬停变旋转光标），按住 **Shift** 按 15° 吸附；可撤销
   - **改内容**：双击文字重新编辑
   - **删除**：Delete / Backspace
   - **改色/实心**：选中后点色板改色；选中矩形时切「实心」开关即时生效
@@ -133,23 +162,49 @@
 | 自动转白底 | 抠图后直接生成白底大图 | 关闭 |
 | 白底尺寸 | 白底画布边长 (px) | 800 |
 | 内容占比 | 原图最长边占画布比例 (%) | 85 |
+| 大图背景 (bgMode) | `white` 白底（填充白色） / `transparent` 透明底（保留透明通道） | white（白底） |
+| 压缩宽度 (compressWidth) | 「压」按钮的目标宽度 (px)，高度按原图比例缩放 | 1024 |
+| 压缩质量 (compressQuality) | 「压」按钮输出 JPEG 的质量 (%)，数值越高越清晰 | 80 |
 
-> 白底规则：内容等比缩放至最长边 = 尺寸 × 占比，水平垂直居中，其余区域纯白。
+> 白底规则：内容等比缩放至最长边 = 尺寸 × 占比，水平垂直居中，其余区域纯白；`bgMode=transparent` 时不填充白色，保留透明背景（尺寸与占比规则不变）。
 
 ## 技术架构
 
 ### 文件结构
+
+扩展目录（`chrome://extensions` 加载的就是它）：
+
 ```
 iwb-cutout-extension/
-├── manifest.json    # Chrome Extension Manifest V3 配置 (v2.5.0)
-├── background.js     # 后台服务：调用鲜艺抠图 HTTP API
-├── content.js        # 内容脚本：注入按钮、读取图片、注入结果
-├── editor.js         # 图层化图片编辑器（图层 + 裁剪 + 标注）
-├── styles.css        # 注入样式（含编辑器 + 图层面板样式）
-├── popup.html        # 设置弹窗
-├── popup.js          # 弹窗逻辑
-├── icons/            # 插件图标
-└── gen_icon.py       # 图标生成脚本
+├── manifest.json       # MV3 配置 (v2.16.1)；service_worker 与 content_scripts 指向 dist/*.js
+├── popup.html          # 设置弹窗（script src="dist/popup.js"）
+├── styles.css          # 注入样式（含编辑器 + 图层面板样式）
+├── src/                # 源码（改动这里）
+│   ├── content.js      # 内容脚本：注入按钮、读取图片、注入结果
+│   ├── editor.js       # 图层化图片编辑器（图层 + 裁剪 + 标注）
+│   ├── background.js   # 后台服务：调用鲜艺抠图 HTTP API
+│   ├── popup.js        # 弹窗逻辑（配置默认值 DEFAULTS）
+│   ├── shared/         # 共享模块：默认配置、宿主 DOM 选择器、二进制/base64 转换
+│   └── entries/        # esbuild 打包入口
+│       ├── content.js  # 先加载 editor.js，再加载 content.js
+│       ├── background.js
+│       └── popup.js
+├── dist/               # 构建产物（npm run build 生成；扩展实际加载）
+├── icons/              # 插件图标
+├── tests/              # 扩展侧测试目录
+└── gen_icon.py         # 图标生成脚本
+```
+
+仓库根目录（构建与测试工具链）：
+
+```
+iwb-plaus/               # 仓库根（构建与测试工具链）
+├── package.json         # 脚本：build / watch / lint / test / test:e2e / verify / pack
+├── scripts/build.mjs    # esbuild 构建脚本（--watch 监听；--e2e 组装 build/e2e-ext/）
+├── eslint.config.js     # ESLint 规则
+├── vitest.config.js     # Vitest 配置（单测目录 tests/unit/**）
+├── .gitignore           # 忽略 node_modules/、build/、test-results/、coverage/ 等
+└── PLAN.md              # 修订计划
 ```
 
 ### 图层架构（v2.2.0）
@@ -190,7 +245,9 @@ iwb-cutout-extension/
 
 ## 故障排查
 
-- **按钮不出现**：确保页面已完全加载，刷新页面
+- **按钮不出现**：确保页面已完全加载，刷新页面；工具条只在带图片的节点（参考图/输出）的气泡栏附近出现
+- **改了代码没生效**：源码改动后必须 `npm run build` 更新 `dist/`，并在 `chrome://extensions` 重新加载扩展；直接改 `dist/` 会被下次构建覆盖
+- **加载扩展报错找不到 dist/*.js**：先在仓库根目录执行 `npm run build` 生成 `iwb-cutout-extension/dist/`
 - **API 连接失败**：确保鲜艺抠图正在运行，且 API 端口 30092 未被占用；设置页“测试连接”只判断服务是否可达，HTTP 405/500 仍表示端口有响应，真正抠图错误会显示 API 返回信息
 - **抠图结果未出现**：尝试切换为「替换原图」模式，或手动 Ctrl+V 粘贴；若本地服务返回空响应，请检查鲜艺软件的模型/API 是否已完成启动
 - **图片读取失败**：插件会先在页面上下文把图片转换为 base64；若页面受 CORS/鉴权限制，会自动回退到扩展后台按图片 URL 下载；若后台也无法下载，请先让图片完整加载或下载后重新上传
@@ -198,6 +255,10 @@ iwb-cutout-extension/
 
 ## 更新日志
 
+> 版本号与标签严格一致：`manifest.json` 的 `version` = git 标签（`npm run version:bump -- <major|minor|patch|set>` 同步改两处）。v2.7.0 → v2.16.1 期间的提交细节见 `git log v2.16.1`（基线标签指向 b708ab0）。
+
+- **v2.17.0（工具链 + 止血）**：引入构建与测试链路 —— esbuild 把 `src/` 打包到 `dist/`（manifest/popup 指向产物）、ESLint（`no-undef` 为 error，为后续拆分抓漏 import）、Vitest 43 项单测、Playwright 扩展 e2e 7 项（真实加载扩展跑完抠图/白底/替换/编辑器/自检），`npm run verify` 一键全检；配置默认值三处合一（`shared/config.js` + `mergeConfig`），修复「内容占比可被存成 >1」「API 地址尾斜杠与非法协议」；宿主 DOM 选择器集中到 `shared/selectors.js` 并加 `probeHost()` 自检 —— 关键选择器失效时启动告警 + popup 新增「自检」按钮列出命中矩阵；工具条跟随由每帧扫描改为 MutationObserver + 100ms 节流（DOM 扫描约 60 次/秒 → 10 次/秒）；新建节点注入改为**点击前**采集已有节点（原逻辑在宿主同步建节点时会漏判、白白退化成粘贴兜底），等待新节点改用 `setTimeout`（后台标签页 rAF 会被暂停）；popup 数值校验补全、版本号改为读 manifest（原硬编码 v1.1.0）；base64/bytes/File 转换与白底布局计算抽到 `shared/` 以便单测。
+- **v2.16.1（基线）**：当前稳定状态概括 — 图层可选中/可移动/可缩放/可旋转（位图层、导入图片、空白层统一为 drawable）；像素级图层拾取；选框跟随非透明内容边界；四角圆弧旋转手柄（悬停旋转光标，Shift 按 15° 吸附，位图层/形状/文字均可旋转，支持撤销）；工具条独立悬浮化（不再注入应用 React DOM，修复拖动滞后与气泡复用问题；编辑器打开时隐藏、无工具节点不显示）；空白画布按钮（空图片节点按预设尺寸建图并打开编辑器）；编辑器多轮 UI 改版（顶部工具栏 + 快捷键徽标 + 左侧参数面板 + 7 档画笔预设 + 裁剪三行布局等）。
 - **v2.7.0**：图层完整排序（矢量独立画布，与位图统一排序）；钢笔双击二次编辑；工具快捷键与退出清理；形状再编辑与描边回改；调色板吸色；白底/透明底切换。
 - **v2.5.0**：适配 image-workbench-web 重构——工具按钮注入到选中节点的浮动气泡栏(.iwb-node-floatbar)；标题栏隐藏时不再注入不可见按钮。
 - **v2.2.2**：编辑器界面与圆形工具、透明区域显示及画笔/橡皮擦交互优化。

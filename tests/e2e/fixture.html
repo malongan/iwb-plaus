@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>生图工作台 fixture（e2e）</title>
+<style>
+  body { font-family: sans-serif; background: #f5f6f8; margin: 0; padding: 24px; }
+  .canvas { display: flex; gap: 16px; align-items: flex-start; }
+  .iwb-node { width: 220px; background: #fff; border-radius: 10px; border: 1px solid #d0d7de; padding: 10px; position: relative; }
+  .iwb-node-selected { outline: 2px solid #e8a735; }
+  .iwb-node-headbtns { display: flex; gap: 6px; margin-bottom: 6px; }
+  .iwb-ref-body { position: relative; }
+  .iwb-ref-single { width: 100%; display: block; border-radius: 6px; }
+  .iwb-node-floatbar { position: fixed; display: flex; gap: 8px; background: #fff; border: 1px solid #d0d7de;
+    border-radius: 8px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+  #log { font-family: monospace; font-size: 12px; white-space: pre-wrap; background: #111; color: #9fef9f;
+    padding: 10px; border-radius: 6px; min-height: 60px; margin-top: 20px; }
+</style>
+</head>
+<body>
+  <!-- 复刻宿主 DOM 关键契约：节点 / 选中态 / 气泡栏 / 图片 / file input / 新建按钮 -->
+  <div class="canvas">
+    <div class="iwb-node iwb-node-selected" data-node-id="node-1" id="n1">
+      <div class="iwb-node-headbtns">
+        <button type="button" data-tip="替换图片">换</button>
+        <input type="file" accept="image/*">
+      </div>
+      <div class="iwb-ref-body">
+        <img class="iwb-ref-single" id="srcimg" alt="ref" />
+      </div>
+    </div>
+    <div class="iwb-node" data-node-id="node-2" id="n2">
+      <div class="iwb-ref-body"><div class="iwb-ref-emptybox"><input type="file" accept="image/*"></div></div>
+    </div>
+  </div>
+
+  <div class="iwb-node-floatbar" id="floatbar" style="left:24px; top:260px;">
+    <button type="button" data-tip="添加参考图节点" id="addRefBtn">+ 参考图</button>
+    <button type="button" id="hostReplace">宿主自己的按钮</button>
+  </div>
+
+  <div id="log"></div>
+
+  <script>
+    // 1x1 红色 PNG，作为参考图源
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    document.getElementById('srcimg').src = PNG
+
+    const log = (m) => { document.getElementById('log').textContent += m + '\n'; window.__lastLog = document.getElementById('log').textContent }
+
+    // 宿主对 file input change 的处理：记录收到的文件（这是扩展注入结果的唯一断言点）
+    document.querySelectorAll('input[type=file]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const f = input.files && input.files[0]
+        if (f) log('FILE:' + f.name + ':' + f.size + ':' + f.type)
+      })
+    })
+
+    // 宿主新建参考图节点的行为
+    document.getElementById('addRefBtn').addEventListener('click', () => {
+      const n = document.createElement('div')
+      n.className = 'iwb-node'
+      n.setAttribute('data-node-id', 'node-' + (document.querySelectorAll('.iwb-node').length + 1))
+      n.innerHTML = '<div class="iwb-ref-body"><div class="iwb-ref-emptybox"><input type="file" accept="image/*"></div></div>'
+      document.querySelector('.canvas').appendChild(n)
+      n.querySelector('input[type=file]').addEventListener('change', () => {
+        const f = n.querySelector('input[type=file]').files[0]
+        if (f) log('NEWFILE:' + f.name + ':' + f.size)
+      })
+      log('NODE_CREATED')
+    })
+
+    window.__fixture = { PNG, log }
+  </script>
+</body>
+</html>
