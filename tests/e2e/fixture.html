@@ -42,8 +42,17 @@
   <div id="log"></div>
 
   <script>
-    // 1x1 红色 PNG，作为参考图源
-    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    // 64×64 生成图（透明底 + 蓝色方块）：
+    // 既当参考图源，也给编辑器的像素级行为用例提供一张真正能画的画布（1×1 图没法测绘制）
+    const PNG = (() => {
+      const c = document.createElement('canvas')
+      c.width = 64
+      c.height = 64
+      const g = c.getContext('2d')
+      g.fillStyle = '#2244ff'
+      g.fillRect(8, 8, 48, 48)
+      return c.toDataURL('image/png')
+    })()
     document.getElementById('srcimg').src = PNG
 
     const log = (m) => { document.getElementById('log').textContent += m + '\n'; window.__lastLog = document.getElementById('log').textContent }

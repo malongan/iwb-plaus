@@ -157,3 +157,100 @@ test('最近一次错误：错误边界落盘后 popup 可查看与清除', asyn
   await expect(section).toBeHidden()
   await popup.close()
 })
+
+/**
+ * 编辑器行为级（像素级）用例 —— T23 函数级拆分的前置安全网。
+ * 断言的不是"元素出现了"，而是画布像素真的被改变、被撤销、被导出。
+ */
+
+/** 编辑器位图图层里"红色笔迹"的像素数（画笔默认色 #ff4444） */
+async function redPixelsInEditor(page) {
+  return page.evaluate(() => {
+    const layers = [...document.querySelectorAll('.iwb-editor-layer-canvas')]
+    let red = 0
+    for (const c of layers) {
+      if (!c.width || !c.height) continue
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] > 200 && d[i + 1] < 120 && d[i + 2] < 120 && d[i + 3] > 10) red++
+      }
+    }
+    return { red, layers: layers.length }
+  })
+}
+
+/** 解析注入到宿主的导出文件：尺寸 + 红/蓝像素统计 */
+async function injectedFilePixels(page) {
+  return page.evaluate(async () => {
+    const inputs = [...document.querySelectorAll('input[type=file]')].filter((i) => i.files && i.files.length)
+    if (!inputs.length) return { found: false }
+    const file = inputs[inputs.length - 1].files[0]
+    const bmp = await createImageBitmap(file)
+    const c = document.createElement('canvas')
+    c.width = bmp.width
+    c.height = bmp.height
+    const g = c.getContext('2d')
+    g.drawImage(bmp, 0, 0)
+    const d = g.getImageData(0, 0, c.width, c.height).data
+    let red = 0
+    let blue = 0
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 10) continue
+      if (d[i] > 200 && d[i + 1] < 120 && d[i + 2] < 120) red++
+      if (d[i + 2] > 200 && d[i] < 120 && d[i + 1] < 140) blue++
+    }
+    return { found: true, name: file.name, width: bmp.width, height: bmp.height, red, blue }
+  })
+}
+
+test('编辑器行为：画笔上色 → 撤销 → 重做 → 导出（像素级）', async () => {
+  const page = await openFixture()
+  await page.locator('#iwb-cutout-toolbar .iwb-editor-btn-icon').click()
+  await expect(page.locator('#iwb-editor-overlay')).toBeVisible({ timeout: 15_000 })
+
+  // 位图图层已就位（原图层 + 画笔层）
+  await expect.poll(async () => (await redPixelsInEditor(page)).layers).toBeGreaterThanOrEqual(2)
+  const before = await redPixelsInEditor(page)
+  expect(before.red).toBe(0) // 未绘制时不应有红像素
+
+  // 加粗笔刷：3px 在 64px 画布上采样容错太低
+  await page.locator('.iwb-editor-brush-preset[data-brush-size="8"]').click()
+
+  // 画一笔。注意：不能用 .iwb-editor-canvas-stack 的 boundingBox ——
+  // 它含 overlayPad(893px) 且被 translate 推到视口外，盒子中心不在可见画布上；
+  // 真正可点的是图层 canvas 本身（坐标换算走的是同一套算术，产品行为正常）。
+  const box = await page.locator('.iwb-editor-layer-canvas').first().boundingBox()
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + 20, cy + 12, { steps: 8 })
+  await page.mouse.up()
+
+  await expect.poll(async () => (await redPixelsInEditor(page)).red).toBeGreaterThan(0)
+
+  // 撤销 → 红像素归零（快照恢复真的把图层像素还原了）
+  await page.locator('.iwb-editor-action[data-action="undo"]').click()
+  await expect.poll(async () => (await redPixelsInEditor(page)).red, { timeout: 5_000 }).toBe(0)
+
+  // 重做 → 红像素回来
+  await page.locator('.iwb-editor-action[data-action="redo"]').click()
+  await expect.poll(async () => (await redPixelsInEditor(page)).red, { timeout: 5_000 }).toBeGreaterThan(0)
+
+  // 导出为新节点：导出的 PNG 必须同时带着原图内容（蓝）与这一笔（红）
+  await page.locator('.iwb-editor-btn-new').click()
+  await page.waitForFunction(
+    () => (document.getElementById('log').textContent || '').includes('NEWFILE:'),
+    null,
+    { timeout: 15_000 }
+  )
+  const out = await injectedFilePixels(page)
+  expect(out.found).toBe(true)
+  expect(out.name).toMatch(/_edited\.png$/)
+  expect(out.width).toBe(64)
+  expect(out.height).toBe(64)
+  expect(out.blue).toBeGreaterThan(0) // 原图内容没丢
+  expect(out.red).toBeGreaterThan(0) // 这一笔在导出结果里
+
+  await page.close()
+})
