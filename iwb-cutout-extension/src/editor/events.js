@@ -20,6 +20,15 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
 
 
   // ============ 鼠标事件 ============
+  /**
+   * 防坑注释（两件事，别踩）：
+   * 1) 三张分发表（MOUSE_DOWN / DRAW_MOVE / DRAW_UP）引用的都是文件后置的 function 声明，
+   *    靠函数声明提升生效；若改成 const 箭头函数，表初始化时会抛 TDZ ReferenceError
+   *    —— 要改必须先把处理器定义挪到表之前。
+   * 2) 守卫不对称（原实现如此，勿顺手"统一"）：onMouseMove 的放置拖拽要求
+   *    placingImage && placingHandle && placingStart，而 onMouseUp 只要求 placingImage && placingHandle；
+   *    平移同理（move 要求 panStart，up 只要求 panning）。
+   */
   /** 工具按下分发表：公共前置逻辑（放置/平移/按钮/钢笔编辑）走完后按 S.tool 派发到对应处理器 */
   const MOUSE_DOWN_HANDLERS = {
     select: onSelectMouseDown,
@@ -256,6 +265,7 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
   }
 
   /** 绘制中移动分发表：公共前置（放置/平移/各拖拽态/isDrawing）走完后按 S.tool 派发到对应处理器 */
+  // 同 MOUSE_DOWN_HANDLERS：依赖 function 声明提升，勿改成 const 箭头函数
   const DRAW_MOVE_HANDLERS = {
     brush: onBrushDrawMove,
     eraser: onEraserDrawMove,
@@ -459,6 +469,7 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
   }
 
   /** 绘制结束分发表：isDrawing 收尾与状态复位后按 S.tool 派发到对应收尾处理器 */
+  // 同 MOUSE_DOWN_HANDLERS：依赖 function 声明提升，勿改成 const 箭头函数
   const DRAW_UP_HANDLERS = {
     brush: onStrokeDrawUp,
     eraser: onStrokeDrawUp,
@@ -1191,61 +1202,93 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     e: 'ew-resize', w: 'ew-resize'
   }
 
+  // 同 MOUSE_DOWN_HANDLERS：依赖 function 声明提升，勿改成 const 箭头函数
+  /** 悬停分发表：各工具的光标与预览（编排器负责前置守卫与旋转手柄优先） */
+  const HOVER_HANDLERS = {
+    select: onHoverSelect,
+    picker: onHoverPicker,
+    hand: onHoverHand,
+    brush: onHoverBrushRing,
+    eraser: onHoverBrushRing,
+    crop: onHoverCrop,
+    text: onHoverText,
+    pen: onHoverCrosshair,
+    rect: onHoverShape,
+    arrow: onHoverShape,
+    circle: onHoverShape
+  }
+
   function onCanvasHover(e) {
     if (S.placingImage) return
     if (S.panning || S.spaceDown) return
     if (S.isDrawing || S.textDrag || S.shapeDrag) return
     const p = getPos(e)
     if (isOverRotationHandle(p)) { S.drawCanvasCursor(ROT_CURSOR); return }
-    if (S.tool === 'select') {
-      const th = hitTextHandle(p)
-      if (th) { S.drawCanvasCursor((th === 'nw' || th === 'se') ? 'nwse-resize' : 'nesw-resize'); return }
-      const shh = hitShapeHandle(p)
-      if (shh) {
-        const sh = getSelectedShape()
-        if (sh && sh.type === 'rect' && CROP_CURSORS[shh]) S.drawCanvasCursor(CROP_CURSORS[shh])
-        else S.drawCanvasCursor('move')
-        return
-      }
-      S.drawCanvasCursor(hitAnyObject(p) ? 'move' : 'default')
+    const handler = Object.prototype.hasOwnProperty.call(HOVER_HANDLERS, S.tool) ? HOVER_HANDLERS[S.tool] : null
+    if (handler) handler(p, e)
+    else S.drawCanvasCursor('crosshair')
+  }
+
+  /** 选择工具：文字/形状手柄缩放光标 > 命中对象的移动光标 > 默认光标 */
+  function onHoverSelect(p) {
+    const th = hitTextHandle(p)
+    if (th) { S.drawCanvasCursor((th === 'nw' || th === 'se') ? 'nwse-resize' : 'nesw-resize'); return }
+    const shh = hitShapeHandle(p)
+    if (shh) {
+      const sh = getSelectedShape()
+      if (sh && sh.type === 'rect' && CROP_CURSORS[shh]) S.drawCanvasCursor(CROP_CURSORS[shh])
+      else S.drawCanvasCursor('move')
       return
     }
-    if (S.tool === 'picker') {
-      S.drawCanvasCursor('crosshair')
-      showPickerTip(e, sampleColor(p))
-      return
+    S.drawCanvasCursor(hitAnyObject(p) ? 'move' : 'default')
+  }
+
+  /** 吸管：十字光标 + 实时取色气泡 */
+  function onHoverPicker(p, e) {
+    S.drawCanvasCursor('crosshair')
+    showPickerTip(e, sampleColor(p))
+  }
+
+  /** 抓手 */
+  function onHoverHand() {
+    S.drawCanvasCursor('grab')
+  }
+
+  /** 画笔/橡皮：隐藏系统光标，改画与笔刷等大的圆环 */
+  function onHoverBrushRing(p) {
+    S.drawCanvasCursor('none')
+    drawToolRing(p)
+  }
+
+  /** 裁剪：手柄光标 > 框内移动光标 > 十字 */
+  function onHoverCrop(p) {
+    if (S.cropRect) {
+      const h = hitCropHandle(p)
+      if (h && CROP_CURSORS[h]) { S.drawCanvasCursor(CROP_CURSORS[h]); return }
+      if (insideRect(p, S.cropRect)) { S.drawCanvasCursor('move'); return }
     }
-    if (S.tool === 'hand') { S.drawCanvasCursor('grab'); return }
-    if (S.tool === 'brush' || S.tool === 'eraser') {
-      S.drawCanvasCursor('none')
-      drawToolRing(p)
-      return
-    }
-    if (S.tool === 'crop') {
-      if (S.cropRect) {
-        const h = hitCropHandle(p)
-        if (h && CROP_CURSORS[h]) { S.drawCanvasCursor(CROP_CURSORS[h]); return }
-        if (insideRect(p, S.cropRect)) { S.drawCanvasCursor('move'); return }
-      }
-      S.drawCanvasCursor('crosshair')
-      return
-    }
-    if (S.tool === 'text') {
-      const h = hitTextHandle(p)
-      if (h) { S.drawCanvasCursor((h === 'nw' || h === 'se') ? 'nwse-resize' : 'nesw-resize'); return }
-      S.drawCanvasCursor(hitTextLayer(p) ? 'move' : 'text')
-      return
-    }
-    if (S.tool === 'pen') { S.drawCanvasCursor('crosshair'); return }
-    if (S.tool === 'rect' || S.tool === 'arrow' || S.tool === 'circle') {
-      const h = hitShapeHandle(p)
-      if (h) {
-        const sh = getSelectedShape()
-        if (sh && sh.type === 'rect' && CROP_CURSORS[h]) S.drawCanvasCursor(CROP_CURSORS[h])
-        else S.drawCanvasCursor('move')
-        return
-      }
-      S.drawCanvasCursor('crosshair')
+    S.drawCanvasCursor('crosshair')
+  }
+
+  /** 文字：手柄缩放 > 命中文字的移动 > 文本输入光标 */
+  function onHoverText(p) {
+    const h = hitTextHandle(p)
+    if (h) { S.drawCanvasCursor((h === 'nw' || h === 'se') ? 'nwse-resize' : 'nesw-resize'); return }
+    S.drawCanvasCursor(hitTextLayer(p) ? 'move' : 'text')
+  }
+
+  /** 钢笔 */
+  function onHoverCrosshair() {
+    S.drawCanvasCursor('crosshair')
+  }
+
+  /** 矩形/圆形/箭头：选中矩形的手柄用裁剪系光标，其余为移动/十字 */
+  function onHoverShape(p) {
+    const h = hitShapeHandle(p)
+    if (h) {
+      const sh = getSelectedShape()
+      if (sh && sh.type === 'rect' && CROP_CURSORS[h]) S.drawCanvasCursor(CROP_CURSORS[h])
+      else S.drawCanvasCursor('move')
       return
     }
     S.drawCanvasCursor('crosshair')

@@ -2405,6 +2405,19 @@
     e: "ew-resize",
     w: "ew-resize"
   };
+  var HOVER_HANDLERS = {
+    select: onHoverSelect,
+    picker: onHoverPicker,
+    hand: onHoverHand,
+    brush: onHoverBrushRing,
+    eraser: onHoverBrushRing,
+    crop: onHoverCrop,
+    text: onHoverText,
+    pen: onHoverCrosshair,
+    rect: onHoverShape,
+    arrow: onHoverShape,
+    circle: onHoverShape
+  };
   function onCanvasHover(e) {
     if (S.placingImage) return;
     if (S.panning || S.spaceDown) return;
@@ -2414,73 +2427,67 @@
       S.drawCanvasCursor(ROT_CURSOR);
       return;
     }
-    if (S.tool === "select") {
-      const th = hitTextHandle(p);
-      if (th) {
-        S.drawCanvasCursor(th === "nw" || th === "se" ? "nwse-resize" : "nesw-resize");
+    const handler = Object.prototype.hasOwnProperty.call(HOVER_HANDLERS, S.tool) ? HOVER_HANDLERS[S.tool] : null;
+    if (handler) handler(p, e);
+    else S.drawCanvasCursor("crosshair");
+  }
+  function onHoverSelect(p) {
+    const th = hitTextHandle(p);
+    if (th) {
+      S.drawCanvasCursor(th === "nw" || th === "se" ? "nwse-resize" : "nesw-resize");
+      return;
+    }
+    const shh = hitShapeHandle(p);
+    if (shh) {
+      const sh = getSelectedShape();
+      if (sh && sh.type === "rect" && CROP_CURSORS[shh]) S.drawCanvasCursor(CROP_CURSORS[shh]);
+      else S.drawCanvasCursor("move");
+      return;
+    }
+    S.drawCanvasCursor(hitAnyObject(p) ? "move" : "default");
+  }
+  function onHoverPicker(p, e) {
+    S.drawCanvasCursor("crosshair");
+    showPickerTip(e, sampleColor(p));
+  }
+  function onHoverHand() {
+    S.drawCanvasCursor("grab");
+  }
+  function onHoverBrushRing(p) {
+    S.drawCanvasCursor("none");
+    drawToolRing(p);
+  }
+  function onHoverCrop(p) {
+    if (S.cropRect) {
+      const h = hitCropHandle(p);
+      if (h && CROP_CURSORS[h]) {
+        S.drawCanvasCursor(CROP_CURSORS[h]);
         return;
       }
-      const shh = hitShapeHandle(p);
-      if (shh) {
-        const sh = getSelectedShape();
-        if (sh && sh.type === "rect" && CROP_CURSORS[shh]) S.drawCanvasCursor(CROP_CURSORS[shh]);
-        else S.drawCanvasCursor("move");
+      if (insideRect(p, S.cropRect)) {
+        S.drawCanvasCursor("move");
         return;
       }
-      S.drawCanvasCursor(hitAnyObject(p) ? "move" : "default");
+    }
+    S.drawCanvasCursor("crosshair");
+  }
+  function onHoverText(p) {
+    const h = hitTextHandle(p);
+    if (h) {
+      S.drawCanvasCursor(h === "nw" || h === "se" ? "nwse-resize" : "nesw-resize");
       return;
     }
-    if (S.tool === "picker") {
-      S.drawCanvasCursor("crosshair");
-      showPickerTip(e, sampleColor(p));
-      return;
-    }
-    if (S.tool === "hand") {
-      S.drawCanvasCursor("grab");
-      return;
-    }
-    if (S.tool === "brush" || S.tool === "eraser") {
-      S.drawCanvasCursor("none");
-      drawToolRing(p);
-      return;
-    }
-    if (S.tool === "crop") {
-      if (S.cropRect) {
-        const h = hitCropHandle(p);
-        if (h && CROP_CURSORS[h]) {
-          S.drawCanvasCursor(CROP_CURSORS[h]);
-          return;
-        }
-        if (insideRect(p, S.cropRect)) {
-          S.drawCanvasCursor("move");
-          return;
-        }
-      }
-      S.drawCanvasCursor("crosshair");
-      return;
-    }
-    if (S.tool === "text") {
-      const h = hitTextHandle(p);
-      if (h) {
-        S.drawCanvasCursor(h === "nw" || h === "se" ? "nwse-resize" : "nesw-resize");
-        return;
-      }
-      S.drawCanvasCursor(hitTextLayer(p) ? "move" : "text");
-      return;
-    }
-    if (S.tool === "pen") {
-      S.drawCanvasCursor("crosshair");
-      return;
-    }
-    if (S.tool === "rect" || S.tool === "arrow" || S.tool === "circle") {
-      const h = hitShapeHandle(p);
-      if (h) {
-        const sh = getSelectedShape();
-        if (sh && sh.type === "rect" && CROP_CURSORS[h]) S.drawCanvasCursor(CROP_CURSORS[h]);
-        else S.drawCanvasCursor("move");
-        return;
-      }
-      S.drawCanvasCursor("crosshair");
+    S.drawCanvasCursor(hitTextLayer(p) ? "move" : "text");
+  }
+  function onHoverCrosshair() {
+    S.drawCanvasCursor("crosshair");
+  }
+  function onHoverShape(p) {
+    const h = hitShapeHandle(p);
+    if (h) {
+      const sh = getSelectedShape();
+      if (sh && sh.type === "rect" && CROP_CURSORS[h]) S.drawCanvasCursor(CROP_CURSORS[h]);
+      else S.drawCanvasCursor("move");
       return;
     }
     S.drawCanvasCursor("crosshair");
