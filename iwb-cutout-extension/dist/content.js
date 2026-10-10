@@ -381,9 +381,16 @@
     S.shapeDrag = null;
     S.bitmapDrag = null;
   }
-  function redrawBitmapLayer(layer) {
-    if (!layer || !layer.ctx) return;
-    layer.ctx.clearRect(0, 0, S.imgW, S.imgH);
+  function resolveSourceBox(layer) {
+    if (layer._srcBox && layer.sourceCanvas) {
+      const b = layer._srcBox;
+      return { src: layer.sourceCanvas, box: b };
+    }
+    if (layer.image && layer.w > 0 && layer.h > 0) return { src: layer.image, box: null };
+    if (layer.sourceCanvas && layer.w > 0 && layer.h > 0) return { src: layer.sourceCanvas, box: null };
+    return null;
+  }
+  function paintTransformed(layer, source) {
     const rot = layer.rotation || 0;
     const cx = layer.x + layer.w / 2, cy = layer.y + layer.h / 2;
     layer.ctx.save();
@@ -392,15 +399,20 @@
       layer.ctx.rotate(rot * Math.PI / 180);
       layer.ctx.translate(-cx, -cy);
     }
-    if (layer._srcBox && layer.sourceCanvas) {
-      const b = layer._srcBox;
-      layer.ctx.drawImage(layer.sourceCanvas, b.x, b.y, b.w, b.h, layer.x, layer.y, layer.w, layer.h);
-    } else if (layer.image && layer.w > 0 && layer.h > 0) {
-      layer.ctx.drawImage(layer.image, layer.x, layer.y, layer.w, layer.h);
-    } else if (layer.sourceCanvas && layer.w > 0 && layer.h > 0) {
-      layer.ctx.drawImage(layer.sourceCanvas, layer.x, layer.y, layer.w, layer.h);
+    if (source) {
+      if (source.box) {
+        const b = source.box;
+        layer.ctx.drawImage(source.src, b.x, b.y, b.w, b.h, layer.x, layer.y, layer.w, layer.h);
+      } else {
+        layer.ctx.drawImage(source.src, layer.x, layer.y, layer.w, layer.h);
+      }
     }
     layer.ctx.restore();
+  }
+  function redrawBitmapLayer(layer) {
+    if (!layer || !layer.ctx) return;
+    layer.ctx.clearRect(0, 0, S.imgW, S.imgH);
+    paintTransformed(layer, resolveSourceBox(layer));
   }
   function hitBitmapHandle(pos) {
     const layer = S.layers.find((l) => l.id === S.selectedLayerId && (l.transformable || isDrawableLayer(l)));
@@ -863,6 +875,13 @@
   function bindLayerPanelEvents() {
     const list = runtime.el.querySelector(".iwb-editor-layer-list");
     if (!list) return;
+    bindLayerItemEvents(list);
+    bindLayerStyleInputs(list);
+    bindLayerVisButtons(list);
+    bindLayerLockButtons(list);
+    bindLayerDelButtons(list);
+  }
+  function bindLayerItemEvents(list) {
     list.querySelectorAll(".iwb-layer-item").forEach((item) => {
       item.addEventListener("mousedown", (e) => e.stopPropagation());
       item.addEventListener("dragstart", (e) => {
@@ -906,6 +925,8 @@
         }
       });
     });
+  }
+  function bindLayerStyleInputs(list) {
     list.querySelectorAll(".iwb-layer-color").forEach((input) => {
       input.addEventListener("mousedown", (e) => e.stopPropagation());
       input.addEventListener("input", (e) => {
@@ -941,6 +962,8 @@
         }
       });
     });
+  }
+  function bindLayerVisButtons(list) {
     list.querySelectorAll(".iwb-layer-vis").forEach((btn) => {
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
       btn.addEventListener("click", (e) => {
@@ -968,6 +991,8 @@
         }
       });
     });
+  }
+  function bindLayerLockButtons(list) {
     list.querySelectorAll(".iwb-layer-lock").forEach((btn) => {
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
       btn.addEventListener("click", (e) => {
@@ -982,6 +1007,8 @@
         renderLayerPanel();
       });
     });
+  }
+  function bindLayerDelButtons(list) {
     list.querySelectorAll(".iwb-layer-del").forEach((btn) => {
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
       btn.addEventListener("click", (e) => {
@@ -1214,32 +1241,25 @@
   }
 
   // iwb-cutout-extension/src/editor/events.js
+  var MOUSE_DOWN_HANDLERS = {
+    select: onSelectMouseDown,
+    crop: onCropMouseDown,
+    text: onTextMouseDown,
+    picker: onPickerMouseDown,
+    brush: onBrushMouseDown,
+    eraser: onEraserMouseDown,
+    pen: onPenMouseDown,
+    rect: onShapeMouseDown,
+    arrow: onShapeMouseDown,
+    circle: onShapeMouseDown
+  };
   function onMouseDown(e) {
     if (S.placingImage) {
-      e.preventDefault();
-      const pos2 = getPos(e);
-      const handle = hitPlacementHandle(pos2);
-      if (handle) {
-        S.placingHandle = handle;
-        S.placingStart = { mx: pos2.x, my: pos2.y, x: S.placingImage.x, y: S.placingImage.y, w: S.placingImage.w, h: S.placingImage.h, rotation: S.placingImage.rotation || 0 };
-        S.drawCanvasCursor(CROP_CURSORS[handle] || "move");
-        return;
-      }
-      if (insidePlacementRect(pos2)) {
-        S.placingHandle = "move";
-        S.placingStart = { mx: pos2.x, my: pos2.y, x: S.placingImage.x, y: S.placingImage.y, rotation: S.placingImage.rotation || 0 };
-        S.drawCanvasCursor("move");
-        return;
-      }
-      confirmImagePlacement();
+      onPlacementMouseDown(e);
       return;
     }
     if (S.spaceDown || S.tool === "hand" || e.button === 1) {
-      e.preventDefault();
-      commitTextInput();
-      S.panning = true;
-      S.panStart = { x: e.clientX, y: e.clientY, vx: S.viewX || 0, vy: S.viewY || 0 };
-      updateCursor();
+      onPanMouseDown(e);
       return;
     }
     if (e.button !== 0) return;
@@ -1248,196 +1268,233 @@
     S.startX = pos.x;
     S.startY = pos.y;
     if ((S.tool === "select" || S.tool === "pen") && getPenEditingShape()) {
-      const penShape = getPenEditingShape();
-      const pi = hitPenPoint(pos, penShape, Math.max(16 / S.zoom, 9));
-      if (pi >= 0) {
-        e.preventDefault();
-        S.penDragPt = pi;
-        S.penDragBase = JSON.parse(JSON.stringify(penShape.pts));
-        S.penDragPending = snapshotState();
-        return;
-      }
-      const ei = hitPenEdgeInsert(pos, penShape);
-      if (ei >= 0) {
-        e.preventDefault();
-        saveSnapshot();
-        penShape.pts.splice(ei + 1, 0, { x: pos.x, y: pos.y });
-        renderObjects();
-        renderLayerPanel();
-        return;
-      }
-      S.penEditId = null;
-      S.penDragPt = -1;
-      S.penDragPending = null;
+      if (onPenEditMouseDown(e, pos)) return;
+    }
+    const handler = Object.prototype.hasOwnProperty.call(MOUSE_DOWN_HANDLERS, S.tool) ? MOUSE_DOWN_HANDLERS[S.tool] : null;
+    if (handler) handler(pos);
+  }
+  function onPlacementMouseDown(e) {
+    e.preventDefault();
+    const pos = getPos(e);
+    const handle = hitPlacementHandle(pos);
+    if (handle) {
+      S.placingHandle = handle;
+      S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y, w: S.placingImage.w, h: S.placingImage.h, rotation: S.placingImage.rotation || 0 };
+      S.drawCanvasCursor(CROP_CURSORS[handle] || "move");
+      return;
+    }
+    if (insidePlacementRect(pos)) {
+      S.placingHandle = "move";
+      S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y, rotation: S.placingImage.rotation || 0 };
+      S.drawCanvasCursor("move");
+      return;
+    }
+    confirmImagePlacement();
+  }
+  function onPanMouseDown(e) {
+    e.preventDefault();
+    commitTextInput();
+    S.panning = true;
+    S.panStart = { x: e.clientX, y: e.clientY, vx: S.viewX || 0, vy: S.viewY || 0 };
+    updateCursor();
+  }
+  function onPenEditMouseDown(e, pos) {
+    const penShape = getPenEditingShape();
+    const pi = hitPenPoint(pos, penShape, Math.max(16 / S.zoom, 9));
+    if (pi >= 0) {
+      e.preventDefault();
+      S.penDragPt = pi;
+      S.penDragBase = JSON.parse(JSON.stringify(penShape.pts));
+      S.penDragPending = snapshotState();
+      return true;
+    }
+    const ei = hitPenEdgeInsert(pos, penShape);
+    if (ei >= 0) {
+      e.preventDefault();
+      saveSnapshot();
+      penShape.pts.splice(ei + 1, 0, { x: pos.x, y: pos.y });
       renderObjects();
+      renderLayerPanel();
+      return true;
     }
-    if (S.tool === "select") {
-      if (commitTextInput()) return;
-      const bitmapHandle = hitBitmapHandle(pos);
-      if (bitmapHandle) {
-        beginBitmapDrag(bitmapHandle, pos);
-        return;
-      }
-      const th = hitTextHandle(pos);
-      if (th) {
-        if (th === "rotate") beginTextRotate(pos);
-        else beginTextScaleDrag(th, pos);
-        return;
-      }
-      const shH = hitShapeHandle(pos);
-      if (shH) {
-        beginShapeHandleDrag(shH, pos);
-        return;
-      }
-      const hit = hitAnyObject(pos);
-      if (hit) {
-        S.selectedLayerId = null;
-        if (hit.kind === "text") {
-          S.selectedShapeId = null;
-          S.selectedTextId = hit.obj.id;
-          if (hit.obj.locked) {
-            renderObjects();
-            renderLayerPanel();
-            return;
-          }
-          S.textDrag = { mode: "move", start: pos, layer: { x: hit.obj.x, y: hit.obj.y }, pending: snapshotState() };
-        } else {
-          S.selectedTextId = null;
-          S.selectedShapeId = hit.obj.id;
-          if (hit.obj.locked) {
-            renderObjects();
-            renderLayerPanel();
-            return;
-          }
-          S.shapeDrag = { mode: "move", start: pos, shape: { ...hit.obj }, pending: snapshotState() };
-        }
-        renderObjects();
-        renderLayerPanel();
-      } else {
-        const bitmap = hitBitmapLayer(pos);
-        if (bitmap) {
-          S.selectedLayerId = bitmap.id;
-          S.activeLayerId = bitmap.id;
-          S.selectedTextId = null;
-          S.selectedShapeId = null;
-          beginBitmapDrag(null, pos);
-          renderObjects();
-          renderLayerPanel();
-        } else if (S.selectedLayerId || S.selectedTextId || S.selectedShapeId) {
-          clearSelection();
-          renderObjects();
-          renderLayerPanel();
-        }
-      }
+    S.penEditId = null;
+    S.penDragPt = -1;
+    S.penDragPending = null;
+    renderObjects();
+    return false;
+  }
+  function onSelectMouseDown(pos) {
+    if (commitTextInput()) return;
+    const bitmapHandle = hitBitmapHandle(pos);
+    if (bitmapHandle) {
+      beginBitmapDrag(bitmapHandle, pos);
       return;
     }
-    if (S.tool === "crop") {
-      if (S.cropRect) {
-        const handle = hitCropHandle(pos);
-        if (handle) {
-          S.cropHandle = handle;
-          S.isDrawing = true;
-          return;
-        }
-        if (insideRect(pos, S.cropRect)) {
-          S.cropMoving = true;
-          S.moveStart = { x: pos.x, y: pos.y, rect: { ...S.cropRect } };
-          S.isDrawing = true;
-        }
-        return;
-      }
-      S.isDrawing = true;
-    } else if (S.tool === "text") {
-      if (commitTextInput()) return;
-      const handle = hitTextHandle(pos);
-      if (handle) {
-        if (handle === "rotate") beginTextRotate(pos);
-        else beginTextScaleDrag(handle, pos);
-        return;
-      }
-      const hit = hitTextLayer(pos);
-      if (hit) {
-        S.selectedTextId = hit.id;
-        if (hit.locked) {
-          renderObjects();
-          renderLayerPanel();
-          return;
-        }
-        S.textDrag = {
-          mode: "move",
-          start: pos,
-          layer: { x: hit.x, y: hit.y },
-          pending: snapshotState()
-        };
-        renderObjects();
-        renderLayerPanel();
-      } else {
-        if (S.selectedTextId) {
-          S.selectedTextId = null;
-          renderObjects();
-          renderLayerPanel();
-        }
-        showTextInput(pos.x, pos.y);
-      }
-    } else if (S.tool === "picker") {
-      const s = sampleColor(pos);
-      if (s && s.a > 0) {
-        applyColorChange(rgbToHex(s.r, s.g, s.b));
-      }
-      exitPicker();
+    const th = hitTextHandle(pos);
+    if (th) {
+      if (th === "rotate") beginTextRotate(pos);
+      else beginTextScaleDrag(th, pos);
       return;
-    } else if (S.tool === "brush") {
-      if (!getActiveCtx()) return;
-      S.isDrawing = true;
-      saveSnapshot();
-      beginStroke();
-      strokeSegment(pos.x, pos.y, pos.x, pos.y);
-    } else if (S.tool === "eraser") {
-      if (!getActiveCtx()) return;
-      S.isDrawing = true;
-      saveSnapshot();
-      beginStroke();
-      eraseSegment(pos.x, pos.y, pos.x, pos.y);
-    } else if (S.tool === "pen") {
-      if (!S.penPath) S.penPath = { pts: [], preview: null, closed: false };
-      const point = { x: clamp(pos.x, 0, S.imgW), y: clamp(pos.y, 0, S.imgH) };
-      const first = S.penPath.pts[0];
-      if (first && S.penPath.pts.length >= 3 && Math.hypot(point.x - first.x, point.y - first.y) <= Math.max(12 / S.zoom, S.brushSize * 1.5)) {
-        S.penPath.closed = true;
-        S.penPath.nearStart = true;
-        S.penPath.preview = null;
-        commitPenPath();
-      } else {
-        S.penPath.pts.push(point);
-        renderObjects({ id: "pen-preview", type: "pen", pts: S.penPath.pts.concat(S.penPath.preview ? [S.penPath.preview] : []), closed: false, color: S.color, lw: Math.max(2, S.brushSize), fill: false, opacity: 1, visible: true });
-      }
+    }
+    const shH = hitShapeHandle(pos);
+    if (shH) {
+      beginShapeHandleDrag(shH, pos);
       return;
-    } else if (S.tool === "rect" || S.tool === "arrow" || S.tool === "circle") {
-      const handle = hitShapeHandle(pos);
-      if (handle) {
-        beginShapeHandleDrag(handle, pos);
-        return;
-      }
-      const hitShape = hitShapeLayer(pos, true);
-      if (hitShape && hitShape.type === S.tool) {
-        S.selectedShapeId = hitShape.id;
-        if (hitShape.locked) {
-          renderObjects();
-          renderLayerPanel();
-          return;
-        }
-        S.shapeDrag = { mode: "move", start: pos, shape: { ...hitShape }, pending: snapshotState() };
-        renderObjects();
-        renderLayerPanel();
-        return;
-      }
-      if (S.selectedShapeId) {
+    }
+    const hit = hitAnyObject(pos);
+    if (hit) {
+      S.selectedLayerId = null;
+      if (hit.kind === "text") {
         S.selectedShapeId = null;
+        S.selectedTextId = hit.obj.id;
+        if (hit.obj.locked) {
+          renderObjects();
+          renderLayerPanel();
+          return;
+        }
+        S.textDrag = { mode: "move", start: pos, layer: { x: hit.obj.x, y: hit.obj.y }, pending: snapshotState() };
+      } else {
+        S.selectedTextId = null;
+        S.selectedShapeId = hit.obj.id;
+        if (hit.obj.locked) {
+          renderObjects();
+          renderLayerPanel();
+          return;
+        }
+        S.shapeDrag = { mode: "move", start: pos, shape: { ...hit.obj }, pending: snapshotState() };
+      }
+      renderObjects();
+      renderLayerPanel();
+    } else {
+      const bitmap = hitBitmapLayer(pos);
+      if (bitmap) {
+        S.selectedLayerId = bitmap.id;
+        S.activeLayerId = bitmap.id;
+        S.selectedTextId = null;
+        S.selectedShapeId = null;
+        beginBitmapDrag(null, pos);
+        renderObjects();
+        renderLayerPanel();
+      } else if (S.selectedLayerId || S.selectedTextId || S.selectedShapeId) {
+        clearSelection();
         renderObjects();
         renderLayerPanel();
       }
-      S.isDrawing = true;
     }
+    return;
+  }
+  function onCropMouseDown(pos) {
+    if (S.cropRect) {
+      const handle = hitCropHandle(pos);
+      if (handle) {
+        S.cropHandle = handle;
+        S.isDrawing = true;
+        return;
+      }
+      if (insideRect(pos, S.cropRect)) {
+        S.cropMoving = true;
+        S.moveStart = { x: pos.x, y: pos.y, rect: { ...S.cropRect } };
+        S.isDrawing = true;
+      }
+      return;
+    }
+    S.isDrawing = true;
+  }
+  function onTextMouseDown(pos) {
+    if (commitTextInput()) return;
+    const handle = hitTextHandle(pos);
+    if (handle) {
+      if (handle === "rotate") beginTextRotate(pos);
+      else beginTextScaleDrag(handle, pos);
+      return;
+    }
+    const hit = hitTextLayer(pos);
+    if (hit) {
+      S.selectedTextId = hit.id;
+      if (hit.locked) {
+        renderObjects();
+        renderLayerPanel();
+        return;
+      }
+      S.textDrag = {
+        mode: "move",
+        start: pos,
+        layer: { x: hit.x, y: hit.y },
+        pending: snapshotState()
+      };
+      renderObjects();
+      renderLayerPanel();
+    } else {
+      if (S.selectedTextId) {
+        S.selectedTextId = null;
+        renderObjects();
+        renderLayerPanel();
+      }
+      showTextInput(pos.x, pos.y);
+    }
+  }
+  function onPickerMouseDown(pos) {
+    const s = sampleColor(pos);
+    if (s && s.a > 0) {
+      applyColorChange(rgbToHex(s.r, s.g, s.b));
+    }
+    exitPicker();
+    return;
+  }
+  function onBrushMouseDown(pos) {
+    if (!getActiveCtx()) return;
+    S.isDrawing = true;
+    saveSnapshot();
+    beginStroke();
+    strokeSegment(pos.x, pos.y, pos.x, pos.y);
+  }
+  function onEraserMouseDown(pos) {
+    if (!getActiveCtx()) return;
+    S.isDrawing = true;
+    saveSnapshot();
+    beginStroke();
+    eraseSegment(pos.x, pos.y, pos.x, pos.y);
+  }
+  function onPenMouseDown(pos) {
+    if (!S.penPath) S.penPath = { pts: [], preview: null, closed: false };
+    const point = { x: clamp(pos.x, 0, S.imgW), y: clamp(pos.y, 0, S.imgH) };
+    const first = S.penPath.pts[0];
+    if (first && S.penPath.pts.length >= 3 && Math.hypot(point.x - first.x, point.y - first.y) <= Math.max(12 / S.zoom, S.brushSize * 1.5)) {
+      S.penPath.closed = true;
+      S.penPath.nearStart = true;
+      S.penPath.preview = null;
+      commitPenPath();
+    } else {
+      S.penPath.pts.push(point);
+      renderObjects({ id: "pen-preview", type: "pen", pts: S.penPath.pts.concat(S.penPath.preview ? [S.penPath.preview] : []), closed: false, color: S.color, lw: Math.max(2, S.brushSize), fill: false, opacity: 1, visible: true });
+    }
+    return;
+  }
+  function onShapeMouseDown(pos) {
+    const handle = hitShapeHandle(pos);
+    if (handle) {
+      beginShapeHandleDrag(handle, pos);
+      return;
+    }
+    const hitShape = hitShapeLayer(pos, true);
+    if (hitShape && hitShape.type === S.tool) {
+      S.selectedShapeId = hitShape.id;
+      if (hitShape.locked) {
+        renderObjects();
+        renderLayerPanel();
+        return;
+      }
+      S.shapeDrag = { mode: "move", start: pos, shape: { ...hitShape }, pending: snapshotState() };
+      renderObjects();
+      renderLayerPanel();
+      return;
+    }
+    if (S.selectedShapeId) {
+      S.selectedShapeId = null;
+      renderObjects();
+      renderLayerPanel();
+    }
+    S.isDrawing = true;
   }
   function onMouseMove(e) {
     if (S.placingImage && S.placingHandle && S.placingStart) {
@@ -1852,10 +1909,30 @@
     });
   }
   function bindEvents() {
+    bindToolButtons();
+    bindColorPanel();
+    bindCropConstraintControls();
+    bindColorPalette();
+    bindFillToggle();
+    bindLayerOrderButtons();
+    bindBrushSizeControls();
+    bindBrushParams();
+    bindZoomButtons();
+    bindHistoryActions();
+    bindCropActions();
+    bindLayerAddActions();
+    bindExportActions();
+    bindWheelZoom();
+    bindTextInput();
+    bindGlobalListeners();
+  }
+  function bindToolButtons() {
     runtime.el.querySelectorAll(".iwb-editor-tool").forEach((btn) => {
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
       btn.addEventListener("click", () => setTool(btn.dataset.tool));
     });
+  }
+  function bindColorPanel() {
     const setPanelColor = (color) => applyColorChange(color);
     const panelHexInput = runtime.el.querySelector(".iwb-editor-color-hex-input");
     if (panelHexInput) panelHexInput.addEventListener("change", () => {
@@ -1940,6 +2017,8 @@
         if (e.buttons) pick(hue, e);
       });
     }
+  }
+  function bindCropConstraintControls() {
     runtime.el.querySelectorAll(".iwb-editor-constraint-btn[data-ratio]").forEach((btn) => {
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
       btn.addEventListener("click", () => {
@@ -1971,6 +2050,8 @@
         setConstraint("size", w / h, w, h);
       }
     });
+  }
+  function bindColorPalette() {
     runtime.el.querySelectorAll(".iwb-editor-color[data-color]").forEach((s) => {
       s.addEventListener("mousedown", (e) => e.stopPropagation());
       s.addEventListener("click", () => applyColorChange(s.dataset.color));
@@ -1980,6 +2061,8 @@
       colorInput.addEventListener("mousedown", (e) => e.stopPropagation());
       colorInput.addEventListener("input", () => applyColorChange(colorInput.value));
     }
+  }
+  function bindFillToggle() {
     const fillBtn = runtime.el.querySelector('[data-action="toggleFill"]');
     if (fillBtn) fillBtn.addEventListener("mousedown", (e) => e.stopPropagation());
     fillBtn.addEventListener("click", () => {
@@ -1992,10 +2075,14 @@
         renderObjects();
       }
     });
+  }
+  function bindLayerOrderButtons() {
     runtime.el.querySelectorAll(".iwb-editor-layer-btn").forEach((btn) => {
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
       btn.addEventListener("click", () => moveLayer(btn.dataset.layer));
     });
+  }
+  function bindBrushSizeControls() {
     const slider = runtime.el.querySelector(".iwb-editor-brush-size");
     const brushNum = runtime.el.querySelector(".iwb-editor-brush-num");
     let lwHistoryPushed = false;
@@ -2033,6 +2120,8 @@
         lwHistoryPushed = false;
       });
     }
+  }
+  function bindBrushParams() {
     const hardnessSlider = runtime.el.querySelector(".iwb-editor-brush-hardness");
     hardnessSlider.addEventListener("input", () => {
       S.brushHardness = parseInt(hardnessSlider.value, 10);
@@ -2044,6 +2133,8 @@
       runtime.el.querySelector(".iwb-editor-brush-opacity-val").textContent = opacitySlider.value + "%";
       if (S.strokeCanvas) S.strokeCanvas.style.opacity = S.brushOpacity;
     });
+  }
+  function bindZoomButtons() {
     runtime.el.querySelector('[data-action="zoomOut"]').addEventListener("click", (e) => {
       e.stopPropagation();
       zoomStep(1 / ZOOM_STEP, S.canvasWrap.clientWidth / 2, S.canvasWrap.clientHeight / 2);
@@ -2056,6 +2147,8 @@
       e.stopPropagation();
       setZoomFit();
     });
+  }
+  function bindHistoryActions() {
     const undoBtn = runtime.el.querySelector('[data-action="undo"]');
     const redoBtn = runtime.el.querySelector('[data-action="redo"]');
     const resetBtn = runtime.el.querySelector('[data-action="reset"]');
@@ -2068,8 +2161,12 @@
     redoBtn.addEventListener("click", redo);
     resetBtn.addEventListener("click", resetDraw);
     restoreBtn.addEventListener("click", restoreOriginal);
+  }
+  function bindCropActions() {
     runtime.el.querySelector('[data-action="confirmCrop"]').addEventListener("click", confirmCrop);
     runtime.el.querySelector('[data-action="cancelCrop"]').addEventListener("click", cancelCrop);
+  }
+  function bindLayerAddActions() {
     runtime.el.querySelector('[data-action="addBitmapLayer"]').addEventListener("mousedown", (e) => e.stopPropagation());
     runtime.el.querySelector('[data-action="addBitmapLayer"]').addEventListener("click", () => {
       const fileInput = document.createElement("input");
@@ -2095,10 +2192,16 @@
     runtime.el.querySelector('[data-action="addBlankLayer"]').addEventListener("click", () => {
       addBlankLayer();
     });
+  }
+  function bindExportActions() {
     runtime.el.querySelector('[data-action="cancel"]').addEventListener("click", close);
     runtime.el.querySelector('[data-action="newNode"]').addEventListener("click", () => exportResult("newNode"));
     runtime.el.querySelector('[data-action="replace"]').addEventListener("click", () => exportResult("replace"));
+  }
+  function bindWheelZoom() {
     S.canvasWrap.addEventListener("wheel", onWheel, { passive: false });
+  }
+  function bindTextInput() {
     const textInput = runtime.el.querySelector(".iwb-editor-text-input");
     textInput.addEventListener("mousedown", (e) => e.stopPropagation());
     textInput.addEventListener("keydown", (e) => {
@@ -2111,6 +2214,8 @@
         hideTextInput();
       }
     });
+  }
+  function bindGlobalListeners() {
     document.addEventListener("keydown", onKeydown, true);
     document.addEventListener("keyup", onKeyup, true);
     window.addEventListener("blur", () => {

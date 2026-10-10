@@ -70,27 +70,43 @@ import { isDrawableLayer } from '../shared/layer-logic.js'
     S.bitmapDrag = null
   }
 
+  /** 确定源图/源画布的取样框：内容盒 _srcBox 优先，其次整图 image，再其次整张 sourceCanvas；无可用源返回 null */
+  function resolveSourceBox(layer) {
+    if (layer._srcBox && layer.sourceCanvas) {
+      const b = layer._srcBox
+      return { src: layer.sourceCanvas, box: b }
+    }
+    if (layer.image && layer.w > 0 && layer.h > 0) return { src: layer.image, box: null }
+    if (layer.sourceCanvas && layer.w > 0 && layer.h > 0) return { src: layer.sourceCanvas, box: null }
+    return null
+  }
+
+  /** 带变换绘制：按图层旋转角施加变换后把取样源画到图层画布（无源时只应用变换不落笔） */
+  function paintTransformed(layer, source) {
+    const rot = layer.rotation || 0
+    const cx = layer.x + layer.w / 2, cy = layer.y + layer.h / 2
+    layer.ctx.save()
+    if (rot) {
+      layer.ctx.translate(cx, cy)
+      layer.ctx.rotate(rot * Math.PI / 180)
+      layer.ctx.translate(-cx, -cy)
+    }
+    if (source) {
+      if (source.box) {
+        const b = source.box
+        layer.ctx.drawImage(source.src, b.x, b.y, b.w, b.h, layer.x, layer.y, layer.w, layer.h)
+      } else {
+        layer.ctx.drawImage(source.src, layer.x, layer.y, layer.w, layer.h)
+      }
+    }
+    layer.ctx.restore()
+  }
+
   /** 设置活跃图层 */
   export function redrawBitmapLayer(layer) {
      if (!layer || !layer.ctx) return
      layer.ctx.clearRect(0, 0, S.imgW, S.imgH)
-     const rot = layer.rotation || 0
-     const cx = layer.x + layer.w / 2, cy = layer.y + layer.h / 2
-     layer.ctx.save()
-     if (rot) {
-       layer.ctx.translate(cx, cy)
-       layer.ctx.rotate(rot * Math.PI / 180)
-       layer.ctx.translate(-cx, -cy)
-     }
-     if (layer._srcBox && layer.sourceCanvas) {
-       const b = layer._srcBox
-       layer.ctx.drawImage(layer.sourceCanvas, b.x, b.y, b.w, b.h, layer.x, layer.y, layer.w, layer.h)
-     } else if (layer.image && layer.w > 0 && layer.h > 0) {
-       layer.ctx.drawImage(layer.image, layer.x, layer.y, layer.w, layer.h)
-     } else if (layer.sourceCanvas && layer.w > 0 && layer.h > 0) {
-       layer.ctx.drawImage(layer.sourceCanvas, layer.x, layer.y, layer.w, layer.h)
-     }
-     layer.ctx.restore()
+     paintTransformed(layer, resolveSourceBox(layer))
    }
 
    function bitmapHandlePoints(layer) {
@@ -591,6 +607,15 @@ export function setActiveLayer(id) {
     const list = runtime.el.querySelector('.iwb-editor-layer-list')
     if (!list) return
 
+    bindLayerItemEvents(list)
+    bindLayerStyleInputs(list)
+    bindLayerVisButtons(list)
+    bindLayerLockButtons(list)
+    bindLayerDelButtons(list)
+  }
+
+  /** 图层面板项：点击选中（位图/文字/形状）+ 拖到另一项上排序 */
+  function bindLayerItemEvents(list) {
     // 点击图层项 → 设为活跃
     list.querySelectorAll('.iwb-layer-item').forEach(item => {
       item.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -625,7 +650,10 @@ export function setActiveLayer(id) {
         }
       })
     })
+  }
 
+  /** 图层颜色与边框粗细输入：修改后立即刷新画布和面板 */
+  function bindLayerStyleInputs(list) {
     // 图层颜色与边框粗细：修改后立即刷新画布和面板。
     list.querySelectorAll('.iwb-layer-color').forEach(input => {
       input.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -648,7 +676,10 @@ export function setActiveLayer(id) {
         if (obj) { obj.lineWidth = value; if (type === 'shape') obj.lw = value; else S.brushSize = value; renderObjects(); updateBrushParamUI(); renderLayerPanel() }
       })
     })
+  }
 
+  /** 显隐切换按钮：位图直接切 visible，文字/形状切对象 visible 并重绘 */
+  function bindLayerVisButtons(list) {
     // 显隐切换
     list.querySelectorAll('.iwb-layer-vis').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -667,7 +698,10 @@ export function setActiveLayer(id) {
         }
       })
     })
+  }
 
+  /** 锁定/解锁按钮：切换对象 locked 并存快照 */
+  function bindLayerLockButtons(list) {
     // 锁定/解锁
     list.querySelectorAll('.iwb-layer-lock').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -683,7 +717,10 @@ export function setActiveLayer(id) {
         renderLayerPanel()
       })
     })
+  }
 
+  /** 删除按钮：按类型删除位图图层 / 文字 / 形状 */
+  function bindLayerDelButtons(list) {
     // 删除图层
     list.querySelectorAll('.iwb-layer-del').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())

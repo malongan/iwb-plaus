@@ -20,37 +20,25 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
 
 
   // ============ 鼠标事件 ============
+  /** 工具按下分发表：公共前置逻辑（放置/平移/按钮/钢笔编辑）走完后按 S.tool 派发到对应处理器 */
+  const MOUSE_DOWN_HANDLERS = {
+    select: onSelectMouseDown,
+    crop: onCropMouseDown,
+    text: onTextMouseDown,
+    picker: onPickerMouseDown,
+    brush: onBrushMouseDown,
+    eraser: onEraserMouseDown,
+    pen: onPenMouseDown,
+    rect: onShapeMouseDown,
+    arrow: onShapeMouseDown,
+    circle: onShapeMouseDown
+  }
+
   function onMouseDown(e) {
     // 图片放置模式优先处理
-    if (S.placingImage) {
-      e.preventDefault()
-      const pos = getPos(e)
-      const handle = hitPlacementHandle(pos)
-      if (handle) {
-        S.placingHandle = handle
-        S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y, w: S.placingImage.w, h: S.placingImage.h, rotation: S.placingImage.rotation || 0 }
-        S.drawCanvasCursor(CROP_CURSORS[handle] || 'move')
-        return
-      }
-      if (insidePlacementRect(pos)) {
-        S.placingHandle = 'move'
-        S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y, rotation: S.placingImage.rotation || 0 }
-        S.drawCanvasCursor('move')
-        return
-      }
-      // 点击外部 = 确认放置
-      confirmImagePlacement()
-      return
-    }
+    if (S.placingImage) { onPlacementMouseDown(e); return }
 
-    if (S.spaceDown || S.tool === 'hand' || e.button === 1) {
-      e.preventDefault()
-      commitTextInput()
-      S.panning = true
-      S.panStart = { x: e.clientX, y: e.clientY, vx: S.viewX || 0, vy: S.viewY || 0 }
-      updateCursor()
-      return
-    }
+    if (S.spaceDown || S.tool === 'hand' || e.button === 1) { onPanMouseDown(e); return }
     if (e.button !== 0) return
     e.preventDefault()
 
@@ -58,33 +46,75 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     S.startX = pos.x
     S.startY = pos.y
 
+    // 钢笔节点编辑优先：点节点/点边直接接管；点空白退出编辑后继续走下方工具逻辑
     if ((S.tool === 'select' || S.tool === 'pen') && getPenEditingShape()) {
-      const penShape = getPenEditingShape()
-      const pi = hitPenPoint(pos, penShape, Math.max(16 / S.zoom, 9))
-      if (pi >= 0) {
-        e.preventDefault()
-        S.penDragPt = pi
-        S.penDragBase = JSON.parse(JSON.stringify(penShape.pts))
-        S.penDragPending = snapshotState()
-        return
-      }
-      const ei = hitPenEdgeInsert(pos, penShape)
-      if (ei >= 0) {
-        e.preventDefault()
-        saveSnapshot()
-        penShape.pts.splice(ei + 1, 0, { x: pos.x, y: pos.y })
-        renderObjects()
-        renderLayerPanel()
-        return
-      }
-      // 点击空白：退出编辑（继续走工具原有新建/选择逻辑）
-      S.penEditId = null
-      S.penDragPt = -1
-      S.penDragPending = null
-      renderObjects()
+      if (onPenEditMouseDown(e, pos)) return
     }
 
-    if (S.tool === 'select') {
+    const handler = Object.prototype.hasOwnProperty.call(MOUSE_DOWN_HANDLERS, S.tool) ? MOUSE_DOWN_HANDLERS[S.tool] : null
+    if (handler) handler(pos)
+  }
+
+  /** 图片放置模式的按下：命中手柄/图内开始拖拽，点外部确认放置 */
+  function onPlacementMouseDown(e) {
+    e.preventDefault()
+    const pos = getPos(e)
+    const handle = hitPlacementHandle(pos)
+    if (handle) {
+      S.placingHandle = handle
+      S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y, w: S.placingImage.w, h: S.placingImage.h, rotation: S.placingImage.rotation || 0 }
+      S.drawCanvasCursor(CROP_CURSORS[handle] || 'move')
+      return
+    }
+    if (insidePlacementRect(pos)) {
+      S.placingHandle = 'move'
+      S.placingStart = { mx: pos.x, my: pos.y, x: S.placingImage.x, y: S.placingImage.y, rotation: S.placingImage.rotation || 0 }
+      S.drawCanvasCursor('move')
+      return
+    }
+    // 点击外部 = 确认放置
+    confirmImagePlacement()
+  }
+
+  /** 空格/抓手工具/中键：提交文字输入并开始平移画布 */
+  function onPanMouseDown(e) {
+    e.preventDefault()
+    commitTextInput()
+    S.panning = true
+    S.panStart = { x: e.clientX, y: e.clientY, vx: S.viewX || 0, vy: S.viewY || 0 }
+    updateCursor()
+  }
+
+  /** 钢笔节点编辑中的按下：点节点拖动/点边插点返回 true（已接管）；点空白退出编辑返回 false 继续走工具逻辑 */
+  function onPenEditMouseDown(e, pos) {
+    const penShape = getPenEditingShape()
+    const pi = hitPenPoint(pos, penShape, Math.max(16 / S.zoom, 9))
+    if (pi >= 0) {
+      e.preventDefault()
+      S.penDragPt = pi
+      S.penDragBase = JSON.parse(JSON.stringify(penShape.pts))
+      S.penDragPending = snapshotState()
+      return true
+    }
+    const ei = hitPenEdgeInsert(pos, penShape)
+    if (ei >= 0) {
+      e.preventDefault()
+      saveSnapshot()
+      penShape.pts.splice(ei + 1, 0, { x: pos.x, y: pos.y })
+      renderObjects()
+      renderLayerPanel()
+      return true
+    }
+    // 点击空白：退出编辑（继续走工具原有新建/选择逻辑）
+    S.penEditId = null
+    S.penDragPt = -1
+    S.penDragPending = null
+    renderObjects()
+    return false
+  }
+
+  /** 选择工具的按下：手柄 > 对象 > 位图 > 清空选择，逐级命中 */
+  function onSelectMouseDown(pos) {
       if (commitTextInput()) return
       const bitmapHandle = hitBitmapHandle(pos)
       if (bitmapHandle) { beginBitmapDrag(bitmapHandle, pos); return }
@@ -125,9 +155,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
         }
       }
       return
-    }
+  }
 
-    if (S.tool === 'crop') {
+  /** 裁剪工具的按下：已有选区则拖手柄/整框移动，否则开始拉新选框 */
+  function onCropMouseDown(pos) {
       if (S.cropRect) {
         const handle = hitCropHandle(pos)
         if (handle) { S.cropHandle = handle; S.isDrawing = true; return }
@@ -139,7 +170,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
         return
       }
       S.isDrawing = true
-    } else if (S.tool === 'text') {
+  }
+
+  /** 文字工具的按下：手柄 > 命中已有文字 > 在点击处新建文字 */
+  function onTextMouseDown(pos) {
       if (commitTextInput()) return
       const handle = hitTextHandle(pos)
       if (handle) { if (handle === 'rotate') beginTextRotate(pos); else beginTextScaleDrag(handle, pos); return }
@@ -159,26 +193,38 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
         if (S.selectedTextId) { S.selectedTextId = null; renderObjects(); renderLayerPanel() }
         showTextInput(pos.x, pos.y)
       }
-    } else if (S.tool === 'picker') {
+  }
+
+  /** 吸管工具的按下：取样并应用颜色后退出吸管模式 */
+  function onPickerMouseDown(pos) {
       const s = sampleColor(pos)
       if (s && s.a > 0) {
         applyColorChange(rgbToHex(s.r, s.g, s.b))
       }
       exitPicker()
       return
-    } else if (S.tool === 'brush') {
+  }
+
+  /** 画笔工具的按下：无可写图层则忽略，否则存快照并落下第一点 */
+  function onBrushMouseDown(pos) {
       if (!getActiveCtx()) return
       S.isDrawing = true
       saveSnapshot()
       beginStroke()
       strokeSegment(pos.x, pos.y, pos.x, pos.y)
-    } else if (S.tool === 'eraser') {
+  }
+
+  /** 橡皮工具的按下：与画笔同构，存快照并擦除第一段 */
+  function onEraserMouseDown(pos) {
       if (!getActiveCtx()) return
       S.isDrawing = true
       saveSnapshot()
       beginStroke()
       eraseSegment(pos.x, pos.y, pos.x, pos.y)
-    } else if (S.tool === 'pen') {
+  }
+
+  /** 钢笔工具的按下：回到起点则闭合路径，否则追加一个路径点 */
+  function onPenMouseDown(pos) {
       if (!S.penPath) S.penPath = { pts: [], preview: null, closed: false }
       const point = { x: clamp(pos.x, 0, S.imgW), y: clamp(pos.y, 0, S.imgH) }
       const first = S.penPath.pts[0]
@@ -192,7 +238,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
         renderObjects({ id: 'pen-preview', type: 'pen', pts: S.penPath.pts.concat(S.penPath.preview ? [S.penPath.preview] : []), closed: false, color: S.color, lw: Math.max(2, S.brushSize), fill: false, opacity: 1, visible: true })
       }
       return
-    } else if (S.tool === 'rect' || S.tool === 'arrow' || S.tool === 'circle') {
+  }
+
+  /** 矩形/圆形/箭头的按下：命中同类型形状则拖动，否则开始拉新形状 */
+  function onShapeMouseDown(pos) {
       const handle = hitShapeHandle(pos)
       if (handle) { beginShapeHandleDrag(handle, pos); return }
       const hitShape = hitShapeLayer(pos, true)
@@ -206,7 +255,6 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
       }
       if (S.selectedShapeId) { S.selectedShapeId = null; renderObjects(); renderLayerPanel() }
       S.isDrawing = true
-    }
   }
 
   function onMouseMove(e) {
@@ -623,12 +671,35 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
 
   // ============ 事件绑定 ============
   export function bindEvents() {
+    bindToolButtons()
+    bindColorPanel()
+    bindCropConstraintControls()
+    bindColorPalette()
+    bindFillToggle()
+    bindLayerOrderButtons()
+    bindBrushSizeControls()
+    bindBrushParams()
+    bindZoomButtons()
+    bindHistoryActions()
+    bindCropActions()
+    bindLayerAddActions()
+    bindExportActions()
+    bindWheelZoom()
+    bindTextInput()
+    bindGlobalListeners()
+  }
+
+  /** 工具条按钮：点击切换当前工具 */
+  function bindToolButtons() {
     // 工具
     runtime.el.querySelectorAll('.iwb-editor-tool').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
       btn.addEventListener('click', () => setTool(btn.dataset.tool))
     })
+  }
 
+  /** 独立颜色面板：hex 输入、面板色块、吸管入口与 SV/HUE 取色区 */
+  function bindColorPanel() {
     // 独立颜色面板：颜色选择后同步当前工具颜色。
     const setPanelColor = (color) => applyColorChange(color)
     const panelHexInput = runtime.el.querySelector('.iwb-editor-color-hex-input')
@@ -666,6 +737,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     }
     if (sv) { sv.addEventListener('pointerdown', e => { sv.setPointerCapture(e.pointerId); pick(sv, e) }); sv.addEventListener('pointermove', e => { if (e.buttons) pick(sv, e) }) }
     if (hue) { hue.addEventListener('pointerdown', e => { pick(hue, e) }); hue.addEventListener('pointermove', e => { if (e.buttons) pick(hue, e) }) }
+  }
+
+  /** 裁剪约束控件：比例按钮、尺寸约束开关、应用尺寸按钮 */
+  function bindCropConstraintControls() {
     // 比例约束按钮
     runtime.el.querySelectorAll('.iwb-editor-constraint-btn[data-ratio]').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -696,7 +771,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
         setConstraint('size', w / h, w, h)
       }
     })
+  }
 
+  /** 调色板色块与自定义取色 input */
+  function bindColorPalette() {
     // 颜色
     runtime.el.querySelectorAll('.iwb-editor-color[data-color]').forEach(s => {
       s.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -708,7 +786,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
       colorInput.addEventListener('mousedown', (e) => e.stopPropagation())
       colorInput.addEventListener('input', () => applyColorChange(colorInput.value))
     }
+  }
 
+  /** 实心矩形/圆形开关 */
+  function bindFillToggle() {
     // 实心矩形开关
     const fillBtn = runtime.el.querySelector('[data-action="toggleFill"]')
     if (fillBtn) fillBtn.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -722,13 +803,19 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
         renderObjects()
       }
     })
+  }
 
+  /** 图层顺序调节按钮（上移/下移/置顶/置底） */
+  function bindLayerOrderButtons() {
     // 图层顺序调节
     runtime.el.querySelectorAll('.iwb-editor-layer-btn').forEach(btn => {
       btn.addEventListener('mousedown', (e) => e.stopPropagation())
       btn.addEventListener('click', () => moveLayer(btn.dataset.layer))
     })
+  }
 
+  /** 笔触粗细：预设按钮 + 滑杆 + 数值输入框双向同步 */
+  function bindBrushSizeControls() {
     // 笔触（滑杆 + 数值输入框双向同步）
     const slider = runtime.el.querySelector('.iwb-editor-brush-size')
     const brushNum = runtime.el.querySelector('.iwb-editor-brush-num')
@@ -762,7 +849,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
       })
       brushNum.addEventListener('blur', () => { brushNum.value = S.brushSize; lwHistoryPushed = false })
     }
+  }
 
+  /** 画笔硬度与透明度滑杆 */
+  function bindBrushParams() {
     // 画笔硬度
     const hardnessSlider = runtime.el.querySelector('.iwb-editor-brush-hardness')
     hardnessSlider.addEventListener('input', () => {
@@ -777,7 +867,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
       runtime.el.querySelector('.iwb-editor-brush-opacity-val').textContent = opacitySlider.value + '%'
       if (S.strokeCanvas) S.strokeCanvas.style.opacity = S.brushOpacity
     })
+  }
 
+  /** 缩放按钮：缩小 / 放大 / 适应窗口 */
+  function bindZoomButtons() {
     // 缩放按钮
     runtime.el.querySelector('[data-action="zoomOut"]').addEventListener('click', (e) => {
       e.stopPropagation()
@@ -791,7 +884,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
       e.stopPropagation()
       setZoomFit()
     })
+  }
 
+  /** 撤销 / 重做 / 重置 / 复原 */
+  function bindHistoryActions() {
     // 撤销/重做/重置/复原
     const undoBtn = runtime.el.querySelector('[data-action="undo"]')
     const redoBtn = runtime.el.querySelector('[data-action="redo"]')
@@ -805,11 +901,17 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     redoBtn.addEventListener('click', redo)
     resetBtn.addEventListener('click', resetDraw)
     restoreBtn.addEventListener('click', restoreOriginal)
+  }
 
+  /** 裁剪确认 / 取消按钮 */
+  function bindCropActions() {
     // 裁剪
     runtime.el.querySelector('[data-action="confirmCrop"]').addEventListener('click', confirmCrop)
     runtime.el.querySelector('[data-action="cancelCrop"]').addEventListener('click', cancelCrop)
+  }
 
+  /** 添加位图图层（导入图片）与新建空白图层 */
+  function bindLayerAddActions() {
     // 添加位图图层（导入图片）
     runtime.el.querySelector('[data-action="addBitmapLayer"]').addEventListener('mousedown', (e) => e.stopPropagation())
     runtime.el.querySelector('[data-action="addBitmapLayer"]').addEventListener('click', () => {
@@ -838,17 +940,26 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
     runtime.el.querySelector('[data-action="addBlankLayer"]').addEventListener('click', () => {
       addBlankLayer()
     })
+  }
 
+  /** 底部动作：关闭 / 作为新节点 / 替换（导出入口） */
+  function bindExportActions() {
     // 底部
     runtime.el.querySelector('[data-action="cancel"]').addEventListener('click', close)
     runtime.el.querySelector('[data-action="newNode"]').addEventListener('click', () => exportResult('newNode'))
     runtime.el.querySelector('[data-action="replace"]').addEventListener('click', () => exportResult('replace'))
+  }
 
+  /** 滚轮缩放：绑定在画布容器上（非 passive，需要 preventDefault） */
+  function bindWheelZoom() {
     // canvas 事件绑定到第一个位图图层（初始时还没有图层，延迟绑定）
     // 实际在 setupCanvas 后调用 bindCanvasEvents
     // 滚轮缩放
     S.canvasWrap.addEventListener('wheel', onWheel, { passive: false })
+  }
 
+  /** 文字输入框：Enter 提交、Esc 取消 */
+  function bindTextInput() {
     // 文字输入
     const textInput = runtime.el.querySelector('.iwb-editor-text-input')
     textInput.addEventListener('mousedown', (e) => e.stopPropagation())
@@ -857,7 +968,10 @@ import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
       if (e.key === 'Enter') { e.preventDefault(); commitTextInput() }
       else if (e.key === 'Escape') { e.preventDefault(); hideTextInput() }
     })
+  }
 
+  /** 全局监听：键盘快捷键、窗口失焦、modal 内阻止冒泡 */
+  function bindGlobalListeners() {
     // 键盘快捷键
     document.addEventListener('keydown', onKeydown, true)
     document.addEventListener('keyup', onKeyup, true)

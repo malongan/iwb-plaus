@@ -30,12 +30,15 @@ git checkout v2.16.1            # 随时回到推荐稳定版
      导致等待超时并退化到粘贴兜底（由 e2e 暴露）；
    - `waitForNewRefNode` 用 rAF 轮询 —— 后台/离屏标签页里 rAF 会被完全暂停。
 
-3. **阶段4 里有两项主动缩小范围**（其余 T20~T24 全部完成）：
-   - **T21 状态收敛只做到「收进 `state.js`」**：没有把 `S` 再拆成 `S.viewport/S.tool/...` ——
-     1158 处 `S.x` 引用要同时改，而编辑器没有行为级测试兜底，收益/风险比不划算。
-   - **T23 大函数消解只做到「函数随分节归位」**：`bindEvents`（约 265 行）、`onMouseDown`（约 189 行）
-     等仍是整体，只是从单文件搬进了各自模块。继续拆的前提是先补编辑器行为级测试
-     （画布交互 jsdom 断言不了，需要给 e2e 加「画一笔 → 撤销 → 导出」的像素断言）。
+3. **阶段4 只缩小了 T21 的范围**（T20 / T22 / T23 / T24 全部完成）：
+   - **T21 状态收敛只做到「`S` 收进 `state.js` 唯一所有者 + `runtime.el`」**：没有把 `S` 再拆成
+     `S.viewport/S.tool/...` —— 1158 处 `S.x` 引用要同时改，收益/风险比不划算，留到下一轮。
+   - T23 曾因缺行为级测试被搁置；补上「画笔 → 撤销 → 重做 → 导出」像素级 e2e（9 条 e2e）之后已完成。
+4. **测量口径修正**：初版方案里「`redrawBitmapLayer` 261 行」是**测量错误** —— 当时的脚本按 2 空格缩进
+   找下一个函数声明，把中间 3/4 空格缩进的二十多个函数全算了进去。用 acorn AST 复测的真实基线是
+   `bindEvents` 250 / `onMouseDown` 188 / `createEl` 175 / `onMouseMove` 140 / `onMouseUp` 131，
+   而 `redrawBitmapLayer` 只有 **21 行**。T23 已按真实口径完成；剩余最大的三个函数（`createEl` 166 /
+   `onMouseMove` 140 / `onMouseUp` 131）未纳入本轮，属可选项。
 
 **验证基线（每个标签都必须满足）**：`npm run verify` = ESLint 0 error + 单元测试全绿 + 构建成功 + 扩展 e2e 全绿。
 
@@ -123,7 +126,7 @@ git checkout v2.16.1            # 随时回到推荐稳定版
 |---|---|
 | `bgRatio` 无上限校验，输入 500 会存成 `5.0` | `popup.js:71-75` |
 | base64↔bytes 编解码在 background/content 各写一遍 | `background.js:27-32, 49-55` / `content.js:170-174` |
-| `redrawBitmapLayer` 261 行、`bindEvents` 249 行、`onMouseDown` 187 行 | `editor.js:360, 3662, 3056` |
+| `bindEvents` 250 行、`onMouseDown` 188 行、`createEl` 175 行、`onMouseMove` 140 行（acorn AST 实测） | `editor.js`（T23 已消解，见阶段四） |
 | `.DS_Store`、`paseo.json` 未跟踪，无 `.gitignore` | 仓库根 |
 | `paseo.json` 的 `"setup": "npm install"` 但仓库没有 `package.json` | 仓库根 |
 | `PING_API` 把 405 当"已连接"（注释说明是有意的，但 popup 文案有误导） | `background.js:113-124` |
@@ -189,7 +192,7 @@ git checkout v2.16.1            # 随时回到推荐稳定版
 | T20 | 拆 `editor.js` | 按现有 `// ============ ... ============` 分节直接切：`state.js` / `dom.js` / `layers.js` / `tools/brush` / `tools/select` / `tools/crop` / `tools/text` / `tools/shape` / `tools/pen` / `history.js` / `viewport.js` / `panel.js` / `events.js`。**行为零改动的机械搬迁**，每搬一个文件跑一次 T17/T18 |
 | T21 | 状态收敛 | 全局 `S` 拆为 `viewportState` / `layerState` / `toolState` / `selectionState`，消除 4000 行文件里"谁都改 S"的隐式依赖 |
 | T22 | 宿主适配层 | `shared/host-adapter.js` 定义接口：`getSelectedNode()` / `getNodeImage()` / `injectFile(node, file)` / `createNodeWithImage(file)`；iwb 实现是其中一个 adapter。宿主改版只改这一个文件，且可用 T18 的 fixture 做回归 |
-| T23 | 大函数消解 | `redrawBitmapLayer`（261 行）拆为 `resolveSourceBox` / `paintTransformed` / `paintBaked`；`bindEvents`（249 行）按工具拆 `bind*Events`；`onMouseDown`（187 行）改为**工具分发表** `MOUSE_DOWN[tool](ctx, e)` |
+| T23 | 大函数消解 | ✅ 已完成：`bindEvents` 250→18 行（拆出 16 个 `bind*` 分组）、`onMouseDown` 188→20 行（11 个工具处理器 + `MOUSE_DOWN_HANDLERS` 分发表）、`redrawBitmapLayer` 21→5 行（`resolveSourceBox` / `paintTransformed`），附带 `bindLayerPanelEvents` 118→10 行；最大函数 250→166（-34%） |
 | T24 | 错误边界 | 全局 `window.onerror` → toast + 写入 `chrome.storage.local['iwb_last_error']`，popup 可读 |
 
 ---
