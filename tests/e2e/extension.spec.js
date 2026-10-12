@@ -88,6 +88,11 @@ test('编辑器：点击紫色按钮能打开全屏编辑器', async () => {
   await expect(page.locator('#iwb-editor-overlay')).toBeVisible({timeout: 15_000})
   // 编辑器打开时工具条应被隐藏，避免悬浮在全屏层之上
   await expect(page.locator('#iwb-cutout-toolbar')).toBeHidden()
+  // 「退出」必须真的关掉编辑器，且不触发扩展错误边界
+  // （回归：events.js 漏 import close 时，绑定到的是 window.close → Illegal invocation）
+  await page.locator('#iwb-editor-overlay [data-action="cancel"]').click()
+  await expect(page.locator('#iwb-editor-overlay')).toBeHidden()
+  await expect(page.locator('#iwb-cutout-toast')).toBeHidden()
   await page.close()
 })
 

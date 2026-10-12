@@ -4326,7 +4326,7 @@
       sizeToggle.textContent = "\u542F\u7528\u5C3A\u5BF8";
     }
   }
-  function close2() {
+  function close() {
     if (runtime.el) {
       hideTextInput();
       runtime.el.style.display = "none";
@@ -4354,7 +4354,7 @@
     if (S.callbacks && S.callbacks.onResult) {
       S.callbacks.onResult(dataUrl, mode);
     }
-    close2();
+    close();
   }
   var __stats = () => ({
     history: S.history.length,
@@ -4367,7 +4367,7 @@
   });
   window.__iwbEditor = {
     open,
-    close: close2,
+    close,
     __stats
   };
 

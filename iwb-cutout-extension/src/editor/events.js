@@ -13,7 +13,7 @@ import { applyColorChange, beginStroke, drawToolRing, endStroke, eraseSegment, e
 import { applyConstraintDrag, cancelCrop, clearOverlay, confirmCrop, drawCropPreview, hideCropBar, hitCropHandle, insideRect, resizeCropRect, setConstraint, showCropBar, updateCropInfo } from './crop.js'
 import { applyShapeHandle, beginPenEdit, beginShapeHandleDrag, beginTextRotate, beginTextScaleDrag, commitTextInput, deleteSelectedShape, deleteSelectedText, exitPenEdit, getPenEditingShape, getSelectedShape, getSelectedText, hideTextInput, hitAnyObject, hitPenEdgeInsert, hitPenPoint, hitShapeHandle, hitShapeLayer, hitTextHandle, hitTextLayer, moveLayer, renderObjects, shapeBounds, showTextInput } from './objects.js'
 import { cancelImagePlacement, confirmImagePlacement, drawPlacementPreview, hitPlacementHandle, insidePlacementRect, resizePlacement } from './placement.js'
-import { exportResult } from './index.js'
+import { close, exportResult } from './index.js'
 import { loadImage } from './dom.js'
 import { pushHistory, redo, resetDraw, restoreOriginal, saveSnapshot, snapshotState, undo } from './history.js'
 import { hexToRgb, parseRatio, rgbToHex } from '../shared/image-math.js'
