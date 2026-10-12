@@ -21,7 +21,10 @@ export const DEFAULT_CONFIG = Object.freeze({
   bgRatio: 0.85, // 内容占画布比例 0~1
   bgMode: 'white', // white=白底 / transparent=透明底
   compressWidth: 1024, // 压缩目标宽度
-  compressQuality: 80 // 压缩质量 10~100
+  compressQuality: 80, // 压缩质量 10~100
+  // 编辑/抠图/白底/压缩读图时优先取宿主存的原图（IndexedDB/Cache 引用），
+  // 失败回落画布上的 ≤1024px 预览图。关闭后行为与旧版一致（只用预览图）。
+  useOriginalImage: true
 })
 
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n))
@@ -72,7 +75,8 @@ export function mergeConfig(raw) {
     bgRatio: num(r.bgRatio != null ? r.bgRatio : d.bgRatio, d.bgRatio, 0.1, 1),
     bgMode: r.bgMode === 'transparent' ? 'transparent' : 'white',
     compressWidth: Math.round(num(r.compressWidth != null ? r.compressWidth : d.compressWidth, d.compressWidth, 64, 8192)),
-    compressQuality: Math.round(num(r.compressQuality != null ? r.compressQuality : d.compressQuality, d.compressQuality, 10, 100))
+    compressQuality: Math.round(num(r.compressQuality != null ? r.compressQuality : d.compressQuality, d.compressQuality, 10, 100)),
+    useOriginalImage: r.useOriginalImage != null ? !!r.useOriginalImage : d.useOriginalImage
   }
 }
 

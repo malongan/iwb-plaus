@@ -18,6 +18,7 @@ import { installErrorBoundary, describeError } from './shared/error-report.js'
 // 别名导入保持本文件原有调用名不变，逻辑统一收敛到 host-adapter（有单测覆盖）。
 import {
   getNodeImage as getImageFromNode,
+  getNodeImageDataRef,
   hasImage as nodeHasImage,
   isEmptyRefNode,
   getNodeFileName as getNodeImageName,
@@ -27,6 +28,7 @@ import {
   writeFileToNode,
   resolveLiveNode
 } from './shared/host-adapter.js'
+import { resolveImageDataRef } from './shared/original-image.js'
 
 (function () {
   'use strict'
@@ -88,6 +90,25 @@ import {
       })
     } catch (e) {
       return null
+    }
+  }
+
+  /**
+   * 读取节点图片数据：优先宿主工作区里的**原图**，失败回落画布上的压缩预览图。
+   * 宿主画布只渲染 ≤1024px 预览（解码即缩放），原图字节在 IndexedDB/Cache 引用里；
+   * 引用缺失（刚注入还没落库等）或开关关闭时，行为与旧版一致。
+   * @returns {Promise<{base64?:string, url?:string, blobUrl?:string}|null>} 与 getNodeImage 同形
+   */
+  async function readSourceImage(nodeEl) {
+    const fallback = getImageFromNode(nodeEl)
+    if (!config.useOriginalImage) return fallback
+    try {
+      const ref = getNodeImageDataRef(nodeEl)
+      if (!ref) return fallback
+      const resolved = await resolveImageDataRef(ref.value)
+      return resolved || fallback
+    } catch (e) {
+      return fallback
     }
   }
 
@@ -172,8 +193,8 @@ import {
     showOverlay()
 
     try {
-      // 1. 读取图片
-      const imgData = getImageFromNode(nodeEl)
+      // 1. 读取图片（优先宿主原图，回落画布预览图）
+      const imgData = await readSourceImage(nodeEl)
       if (!imgData) { showToast('未找到图片，请确保节点中有图片', 'error'); return }
 
       let imageBase64 = imgData.base64
@@ -250,8 +271,8 @@ import {
     showOverlay('白底图处理中...')
 
     try {
-      // 1. 读取图片
-      const imgData = getImageFromNode(nodeEl)
+      // 1. 读取图片（优先宿主原图，回落画布预览图）
+      const imgData = await readSourceImage(nodeEl)
       if (!imgData) { showToast('未找到图片，请确保节点中有图片', 'error'); return }
 
       // 2. canvas 生成大图（白底 / 透明底）
@@ -289,8 +310,8 @@ import {
     }
 
     try {
-      // 读取图片 → 转 base64
-      const imgData = getImageFromNode(nodeEl)
+      // 读取图片 → 转 base64（优先宿主原图，回落画布预览图）
+      const imgData = await readSourceImage(nodeEl)
       if (!imgData) { showToast('未找到图片', 'error'); return }
 
       let imageBase64 = imgData.base64
@@ -504,7 +525,7 @@ import {
     processingNodes.add(nodeId); setButtonProcessing(nodeEl, true)
     try {
       const currentConfig = await new Promise(resolve => chrome.runtime.sendMessage({ type: 'GET_CONFIG' }, r => resolve((r && r.success && r.config) || config)))
-      const data = getImageFromNode(nodeEl)
+      const data = await readSourceImage(nodeEl)
       const src = data.base64 || (data.blobUrl ? await blobUrlToBase64(data.blobUrl) : data.url)
       if (!src) throw new Error('无法读取图片数据')
       const img = await loadImageSafe(src)

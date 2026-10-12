@@ -12,6 +12,70 @@
 
 import { SEL, byNodeId, probeHost, probeProblems } from './selectors.js'
 
+// ---- 宿主工作区存储（ws-keys 布局）----
+// 宿主 v3.87.x 起：iwb_web_workspaces 只是索引（store:'ws-keys'，不含 nodes），
+// 每个画布的节点本体在独立键 iwb_ws_<id>，当前画布 id 在 iwb_ws_active。
+// 旧版则是整份 { workspaces: [{ nodes: [...] }] } 内嵌在 iwb_web_workspaces。
+const WS_INDEX_KEY = 'iwb_web_workspaces'
+const WS_KEY_PREFIX = 'iwb_ws_'
+const WS_ACTIVE_KEY = 'iwb_ws_active'
+
+function parseJson(raw) {
+  try { return JSON.parse(raw || 'null') } catch { return null }
+}
+
+/** 在一份画布记录（{ nodes: [...] }）里按 id 找节点 */
+function nodeInBoard(board, nodeId) {
+  const nodes = board && Array.isArray(board.nodes) ? board.nodes : null
+  return nodes ? (nodes.find((n) => n && n.id === nodeId) || null) : null
+}
+
+/**
+ * 按节点 id 在宿主存储里找节点记录（含 data）。
+ * 依次尝试：当前画布 → 索引里的其它画布 → 旧版内嵌格式 → 扫描 iwb_ws_* 键。
+ * @param {string} nodeId
+ * @param {Storage} [storage]
+ */
+export function findNodeRecord(nodeId, storage = globalThis.localStorage) {
+  if (!nodeId || !storage) return null
+  try {
+    let activeId = ''
+    try { activeId = storage.getItem(WS_ACTIVE_KEY) || '' } catch { activeId = '' }
+    const idx = parseJson(storage.getItem(WS_INDEX_KEY))
+    if (!activeId && idx && idx.activeId) activeId = String(idx.activeId)
+
+    const viaKey = (id) => {
+      if (!id) return null
+      return nodeInBoard(parseJson(storage.getItem(WS_KEY_PREFIX + id)), nodeId)
+    }
+
+    const hit = viaKey(activeId)
+    if (hit) return hit
+
+    if (idx && Array.isArray(idx.workspaces)) {
+      for (const w of idx.workspaces) {
+        if (!w || !w.id || String(w.id) === activeId) continue
+        const n = viaKey(String(w.id))
+        if (n) return n
+      }
+      // 旧版：整份 workspaces 内嵌 nodes
+      for (const w of idx.workspaces) {
+        const n = nodeInBoard(w, nodeId)
+        if (n) return n
+      }
+    }
+
+    // 兜底：扫描所有画布键（索引缺失/不全时）
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i)
+      if (!k || k.indexOf(WS_KEY_PREFIX) !== 0 || k === WS_ACTIVE_KEY || k.indexOf('iwb_ws_bak_') === 0 || k.indexOf('iwb_ws_expanded') === 0) continue
+      const n = nodeInBoard(parseJson(storage.getItem(k)), nodeId)
+      if (n) return n
+    }
+  } catch { /* 存储不可达一律返回 null，由调用方回落 */ }
+  return null
+}
+
 /** 当前选中的节点（优先） */
 export function getSelectedNode(doc = document) {
   return doc.querySelector(SEL.nodeSelected)
@@ -57,14 +121,33 @@ export function isEmptyRefNode(nodeEl) {
 export function getNodeFileName(nodeEl, storage = globalThis.localStorage) {
   if (!nodeEl) return 'image'
   try {
-    const raw = storage && storage.getItem(SEL.workspacesKey)
-    const wsData = JSON.parse(raw || '{}')
-    const ws = (wsData.workspaces || []).find((w) => w.id === (wsData.activeId || wsData.workspaces?.[0]?.id))
     const nodeId = nodeEl.getAttribute('data-node-id')
-    const node = (ws?.nodes || []).find((n) => n.id === nodeId)
-    return node?.data?.name || 'image'
+    const node = findNodeRecord(nodeId, storage)
+    return (node && node.data && node.data.name) || 'image'
   } catch {
     return 'image'
+  }
+}
+
+/**
+ * 节点图片的**原始数据引用**（宿主工作区里存的那份，不是画布上渲染的压缩预览）。
+ * 宿主画布只渲染 ≤1024px 的预览图（解码即缩放），原图字节以引用形式存在
+ * IndexedDB（{__blob}）/ Cache Storage（{__cache}）里，或本身就是 dataURL / 远端 URL。
+ * @returns {{kind:'data'|'url', value:*}|null}
+ */
+export function getNodeImageDataRef(nodeEl, storage = globalThis.localStorage) {
+  if (!nodeEl) return null
+  try {
+    const nodeId = nodeEl.getAttribute('data-node-id')
+    const node = findNodeRecord(nodeId, storage)
+    const d = node && node.data
+    if (!d || typeof d !== 'object') return null
+    // 本地字节优先（dataURL 或 {__blob}/{__cache} 引用）；否则远端 url
+    if (d.data) return { kind: 'data', value: d.data }
+    if (d.url) return { kind: 'url', value: String(d.url) }
+    return null
+  } catch {
+    return null
   }
 }
 

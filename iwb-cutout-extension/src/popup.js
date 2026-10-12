@@ -10,6 +10,7 @@ import { readLastError, clearLastError } from './shared/error-report.js'
 document.addEventListener('DOMContentLoaded', () => {
   const apiUrlEl = document.getElementById('apiUrl')
   const cropEl = document.getElementById('crop')
+  const useOriginalImageEl = document.getElementById('useOriginalImage')
   const autoConnectEl = document.getElementById('autoConnect')
   const autoWhiteBgEl = document.getElementById('autoWhiteBg')
   const bgSizeEl = document.getElementById('bgSize')
@@ -54,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function fillForm(config) {
     apiUrlEl.value = config.apiUrl
     cropEl.checked = config.crop
+    useOriginalImageEl.checked = config.useOriginalImage
     autoConnectEl.checked = config.autoConnect
     autoWhiteBgEl.checked = config.autoWhiteBg
     bgSizeEl.value = config.bgSize
@@ -93,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const candidate = {
       apiUrl: apiUrlEl.value.trim(),
       crop: cropEl.checked,
+      useOriginalImage: useOriginalImageEl.checked,
       autoConnect: autoConnectEl.checked,
       replaceMode: modeReplaceEl.checked,
       autoWhiteBg: autoWhiteBgEl.checked,

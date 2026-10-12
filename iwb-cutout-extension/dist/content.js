@@ -4391,8 +4391,11 @@
     // white=白底 / transparent=透明底
     compressWidth: 1024,
     // 压缩目标宽度
-    compressQuality: 80
+    compressQuality: 80,
     // 压缩质量 10~100
+    // 编辑/抠图/白底/压缩读图时优先取宿主存的原图（IndexedDB/Cache 引用），
+    // 失败回落画布上的 ≤1024px 预览图。关闭后行为与旧版一致（只用预览图）。
+    useOriginalImage: true
   });
   var clamp2 = (n, min, max) => Math.min(max, Math.max(min, n));
   function num(v, fallback, min, max) {
@@ -4428,7 +4431,8 @@
       bgRatio: num(r.bgRatio != null ? r.bgRatio : d.bgRatio, d.bgRatio, 0.1, 1),
       bgMode: r.bgMode === "transparent" ? "transparent" : "white",
       compressWidth: Math.round(num(r.compressWidth != null ? r.compressWidth : d.compressWidth, d.compressWidth, 64, 8192)),
-      compressQuality: Math.round(num(r.compressQuality != null ? r.compressQuality : d.compressQuality, d.compressQuality, 10, 100))
+      compressQuality: Math.round(num(r.compressQuality != null ? r.compressQuality : d.compressQuality, d.compressQuality, 10, 100)),
+      useOriginalImage: r.useOriginalImage != null ? !!r.useOriginalImage : d.useOriginalImage
     };
   }
 
@@ -4609,6 +4613,58 @@
   }
 
   // iwb-cutout-extension/src/shared/host-adapter.js
+  var WS_INDEX_KEY = "iwb_web_workspaces";
+  var WS_KEY_PREFIX = "iwb_ws_";
+  var WS_ACTIVE_KEY = "iwb_ws_active";
+  function parseJson(raw) {
+    try {
+      return JSON.parse(raw || "null");
+    } catch {
+      return null;
+    }
+  }
+  function nodeInBoard(board, nodeId) {
+    const nodes = board && Array.isArray(board.nodes) ? board.nodes : null;
+    return nodes ? nodes.find((n) => n && n.id === nodeId) || null : null;
+  }
+  function findNodeRecord(nodeId, storage = globalThis.localStorage) {
+    if (!nodeId || !storage) return null;
+    try {
+      let activeId = "";
+      try {
+        activeId = storage.getItem(WS_ACTIVE_KEY) || "";
+      } catch {
+        activeId = "";
+      }
+      const idx = parseJson(storage.getItem(WS_INDEX_KEY));
+      if (!activeId && idx && idx.activeId) activeId = String(idx.activeId);
+      const viaKey = (id) => {
+        if (!id) return null;
+        return nodeInBoard(parseJson(storage.getItem(WS_KEY_PREFIX + id)), nodeId);
+      };
+      const hit = viaKey(activeId);
+      if (hit) return hit;
+      if (idx && Array.isArray(idx.workspaces)) {
+        for (const w of idx.workspaces) {
+          if (!w || !w.id || String(w.id) === activeId) continue;
+          const n = viaKey(String(w.id));
+          if (n) return n;
+        }
+        for (const w of idx.workspaces) {
+          const n = nodeInBoard(w, nodeId);
+          if (n) return n;
+        }
+      }
+      for (let i = 0; i < storage.length; i++) {
+        const k = storage.key(i);
+        if (!k || k.indexOf(WS_KEY_PREFIX) !== 0 || k === WS_ACTIVE_KEY || k.indexOf("iwb_ws_bak_") === 0 || k.indexOf("iwb_ws_expanded") === 0) continue;
+        const n = nodeInBoard(parseJson(storage.getItem(k)), nodeId);
+        if (n) return n;
+      }
+    } catch {
+    }
+    return null;
+  }
   function getSelectedNode(doc = document) {
     return doc.querySelector(SEL.nodeSelected);
   }
@@ -4638,14 +4694,25 @@
   function getNodeFileName(nodeEl, storage = globalThis.localStorage) {
     if (!nodeEl) return "image";
     try {
-      const raw = storage && storage.getItem(SEL.workspacesKey);
-      const wsData = JSON.parse(raw || "{}");
-      const ws = (wsData.workspaces || []).find((w) => w.id === (wsData.activeId || wsData.workspaces?.[0]?.id));
       const nodeId = nodeEl.getAttribute("data-node-id");
-      const node = (ws?.nodes || []).find((n) => n.id === nodeId);
-      return node?.data?.name || "image";
+      const node = findNodeRecord(nodeId, storage);
+      return node && node.data && node.data.name || "image";
     } catch {
       return "image";
+    }
+  }
+  function getNodeImageDataRef(nodeEl, storage = globalThis.localStorage) {
+    if (!nodeEl) return null;
+    try {
+      const nodeId = nodeEl.getAttribute("data-node-id");
+      const node = findNodeRecord(nodeId, storage);
+      const d = node && node.data;
+      if (!d || typeof d !== "object") return null;
+      if (d.data) return { kind: "data", value: d.data };
+      if (d.url) return { kind: "url", value: String(d.url) };
+      return null;
+    } catch {
+      return null;
     }
   }
   function getAddRefButton(doc = document) {
@@ -4703,6 +4770,111 @@
     return Array.from(doc.querySelectorAll(SEL.node));
   }
 
+  // iwb-cutout-extension/src/shared/original-image.js
+  var HOST_IDB_NAME = "iwb_web";
+  var HOST_IDB_VERSION = 3;
+  var HOST_IDB_IMAGES_STORE = "images";
+  var HOST_IMAGE_CACHE = "iwb-images-local";
+  function blobToDataUrl(blob, FileReaderCtor = globalThis.FileReader) {
+    if (!blob) return Promise.resolve(null);
+    if (typeof FileReaderCtor === "function") {
+      return new Promise((resolve) => {
+        const reader = new FileReaderCtor();
+        reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : null);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    }
+    if (typeof blob.arrayBuffer === "function") {
+      return blob.arrayBuffer().then((buf) => {
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        const chunk = 32768;
+        for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        const mime = blob.type || "image/png";
+        return `data:${mime};base64,${btoa(bin)}`;
+      }).catch(() => null);
+    }
+    return Promise.resolve(null);
+  }
+  function openHostIdb(indexedDB) {
+    return new Promise((resolve) => {
+      if (!indexedDB || typeof indexedDB.open !== "function") {
+        resolve(null);
+        return;
+      }
+      let req;
+      try {
+        req = indexedDB.open(HOST_IDB_NAME, HOST_IDB_VERSION);
+      } catch {
+        resolve(null);
+        return;
+      }
+      req.onupgradeneeded = () => {
+      };
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    });
+  }
+  async function idbGetBlob(indexedDB, key) {
+    const db = await openHostIdb(indexedDB);
+    if (!db) return null;
+    try {
+      if (!db.objectStoreNames.contains(HOST_IDB_IMAGES_STORE)) return null;
+      const value = await new Promise((resolve) => {
+        const tx = db.transaction(HOST_IDB_IMAGES_STORE, "readonly");
+        const req = tx.objectStore(HOST_IDB_IMAGES_STORE).get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      });
+      if (value && typeof value === "object" && typeof value.slice === "function") return value;
+      return null;
+    } catch {
+      return null;
+    } finally {
+      try {
+        db.close();
+      } catch {
+      }
+    }
+  }
+  async function cacheMatch(cachesRef, origin, path) {
+    if (!cachesRef || typeof cachesRef.open !== "function" || !path) return null;
+    try {
+      const cache = await cachesRef.open(HOST_IMAGE_CACHE);
+      if (!cache || typeof cache.match !== "function") return null;
+      const url = /^https?:/i.test(path) ? path : String(origin || "") + path;
+      const resp = await cache.match(new Request(url));
+      return resp && typeof resp.blob === "function" ? await resp.blob() : null;
+    } catch {
+      return null;
+    }
+  }
+  async function resolveImageDataRef(value, deps = {}) {
+    if (value == null || value === "") return null;
+    const FileReaderCtor = deps.FileReader || globalThis.FileReader;
+    if (typeof value === "string") {
+      if (value.startsWith("data:")) return { base64: value };
+      if (value.startsWith("blob:")) return { blobUrl: value };
+      if (/^https?:/i.test(value)) return { url: value };
+      return null;
+    }
+    if (typeof value === "object") {
+      if (typeof value.__blob === "string" && value.__blob) {
+        const blob = await idbGetBlob(deps.indexedDB || globalThis.indexedDB, value.__blob);
+        const base64 = await blobToDataUrl(blob, FileReaderCtor);
+        return base64 ? { base64 } : null;
+      }
+      if (typeof value.__cache === "string" && value.__cache) {
+        const blob = await cacheMatch(deps.caches || globalThis.caches, deps.origin || globalThis.location?.origin, value.__cache);
+        const base64 = await blobToDataUrl(blob, FileReaderCtor);
+        return base64 ? { base64 } : null;
+      }
+    }
+    return null;
+  }
+
   // iwb-cutout-extension/src/content.js
   (function() {
     "use strict";
@@ -4742,6 +4914,18 @@
         });
       } catch (e) {
         return null;
+      }
+    }
+    async function readSourceImage(nodeEl) {
+      const fallback = getNodeImage(nodeEl);
+      if (!config.useOriginalImage) return fallback;
+      try {
+        const ref = getNodeImageDataRef(nodeEl);
+        if (!ref) return fallback;
+        const resolved = await resolveImageDataRef(ref.value);
+        return resolved || fallback;
+      } catch (e) {
+        return fallback;
       }
     }
     async function loadImageSafe(src) {
@@ -4809,7 +4993,7 @@
       setButtonProcessing(nodeEl, true);
       showOverlay();
       try {
-        const imgData = getNodeImage(nodeEl);
+        const imgData = await readSourceImage(nodeEl);
         if (!imgData) {
           showToast("\u672A\u627E\u5230\u56FE\u7247\uFF0C\u8BF7\u786E\u4FDD\u8282\u70B9\u4E2D\u6709\u56FE\u7247", "error");
           return;
@@ -4878,7 +5062,7 @@
       setButtonProcessing(nodeEl, true);
       showOverlay("\u767D\u5E95\u56FE\u5904\u7406\u4E2D...");
       try {
-        const imgData = getNodeImage(nodeEl);
+        const imgData = await readSourceImage(nodeEl);
         if (!imgData) {
           showToast("\u672A\u627E\u5230\u56FE\u7247\uFF0C\u8BF7\u786E\u4FDD\u8282\u70B9\u4E2D\u6709\u56FE\u7247", "error");
           return;
@@ -4912,7 +5096,7 @@
         return;
       }
       try {
-        const imgData = getNodeImage(nodeEl);
+        const imgData = await readSourceImage(nodeEl);
         if (!imgData) {
           showToast("\u672A\u627E\u5230\u56FE\u7247", "error");
           return;
@@ -5096,7 +5280,7 @@
       setButtonProcessing(nodeEl, true);
       try {
         const currentConfig = await new Promise((resolve) => chrome.runtime.sendMessage({ type: "GET_CONFIG" }, (r) => resolve(r && r.success && r.config || config)));
-        const data = getNodeImage(nodeEl);
+        const data = await readSourceImage(nodeEl);
         const src = data.base64 || (data.blobUrl ? await blobUrlToBase64(data.blobUrl) : data.url);
         if (!src) throw new Error("\u65E0\u6CD5\u8BFB\u53D6\u56FE\u7247\u6570\u636E");
         const img = await loadImageSafe(src);

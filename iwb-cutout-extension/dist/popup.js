@@ -18,8 +18,11 @@
     // white=白底 / transparent=透明底
     compressWidth: 1024,
     // 压缩目标宽度
-    compressQuality: 80
+    compressQuality: 80,
     // 压缩质量 10~100
+    // 编辑/抠图/白底/压缩读图时优先取宿主存的原图（IndexedDB/Cache 引用），
+    // 失败回落画布上的 ≤1024px 预览图。关闭后行为与旧版一致（只用预览图）。
+    useOriginalImage: true
   });
   var clamp = (n, min, max) => Math.min(max, Math.max(min, n));
   function num(v, fallback, min, max) {
@@ -55,7 +58,8 @@
       bgRatio: num(r.bgRatio != null ? r.bgRatio : d.bgRatio, d.bgRatio, 0.1, 1),
       bgMode: r.bgMode === "transparent" ? "transparent" : "white",
       compressWidth: Math.round(num(r.compressWidth != null ? r.compressWidth : d.compressWidth, d.compressWidth, 64, 8192)),
-      compressQuality: Math.round(num(r.compressQuality != null ? r.compressQuality : d.compressQuality, d.compressQuality, 10, 100))
+      compressQuality: Math.round(num(r.compressQuality != null ? r.compressQuality : d.compressQuality, d.compressQuality, 10, 100)),
+      useOriginalImage: r.useOriginalImage != null ? !!r.useOriginalImage : d.useOriginalImage
     };
   }
 
@@ -84,6 +88,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     const apiUrlEl = document.getElementById("apiUrl");
     const cropEl = document.getElementById("crop");
+    const useOriginalImageEl = document.getElementById("useOriginalImage");
     const autoConnectEl = document.getElementById("autoConnect");
     const autoWhiteBgEl = document.getElementById("autoWhiteBg");
     const bgSizeEl = document.getElementById("bgSize");
@@ -123,6 +128,7 @@
     function fillForm(config) {
       apiUrlEl.value = config.apiUrl;
       cropEl.checked = config.crop;
+      useOriginalImageEl.checked = config.useOriginalImage;
       autoConnectEl.checked = config.autoConnect;
       autoWhiteBgEl.checked = config.autoWhiteBg;
       bgSizeEl.value = config.bgSize;
@@ -155,6 +161,7 @@
       const candidate = {
         apiUrl: apiUrlEl.value.trim(),
         crop: cropEl.checked,
+        useOriginalImage: useOriginalImageEl.checked,
         autoConnect: autoConnectEl.checked,
         replaceMode: modeReplaceEl.checked,
         autoWhiteBg: autoWhiteBgEl.checked,

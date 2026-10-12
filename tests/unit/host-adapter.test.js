@@ -8,6 +8,8 @@ import {
   hasImage,
   isEmptyRefNode,
   getNodeFileName,
+  getNodeImageDataRef,
+  findNodeRecord,
   getAddRefButton,
   findFileInput,
   getFileInput,
@@ -111,6 +113,73 @@ describe('节点文件名', () => {
     ).toBe('image')
     expect(getNodeFileName(node, null)).toBe('image')
     expect(getNodeFileName(null)).toBe('image')
+  })
+})
+
+/** 宿主 ws-keys 布局的 localStorage 替身：索引 + 每画布独立键 + 当前画布键 */
+function wsKeysStorage({activeId = 'w1', boards, extra = {}} = {}) {
+  const map = new Map()
+  map.set('iwb_ws_active', activeId)
+  map.set(
+    'iwb_web_workspaces',
+    JSON.stringify({
+      store: 'ws-keys',
+      activeId,
+      workspaces: Object.keys(boards).map((id) => ({
+        id,
+        name: '画布' + id,
+        nodeCount: (boards[id].nodes || []).length,
+        edgeCount: 0
+      }))
+    })
+  )
+  for (const [id, rec] of Object.entries(boards)) map.set('iwb_ws_' + id, JSON.stringify(rec))
+  for (const [k, v] of Object.entries(extra)) map.set(k, v)
+  return {
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    key: (i) => [...map.keys()][i] ?? null,
+    get length() {
+      return map.size
+    }
+  }
+}
+
+describe('宿主 ws-keys 存储（索引 + iwb_ws_<id>）', () => {
+  beforeEach(() => renderHost())
+
+  const boards = {
+    w1: {id: 'w1', nodes: [{id: 'n1', data: {name: 'active.png', data: {__blob: 'imgblob_1_9'}}}]},
+    w2: {id: 'w2', nodes: [{id: 'n9', data: {name: 'other.png', data: 'data:image/png;base64,QQ=='}}]}
+  }
+
+  it('在当前画布键里找到节点（文件名 + 原图引用）', () => {
+    const storage = wsKeysStorage({activeId: 'w1', boards})
+    const node = document.querySelector('[data-node-id="n1"]')
+    expect(getNodeFileName(node, storage)).toBe('active.png')
+    expect(getNodeImageDataRef(node, storage)).toEqual({kind: 'data', value: {__blob: 'imgblob_1_9'}})
+  })
+
+  it('当前画布没有时回查其它画布键', () => {
+    const storage = wsKeysStorage({activeId: 'w1', boards})
+    const rec = findNodeRecord('n9', storage)
+    expect(rec && rec.data.name).toBe('other.png')
+  })
+
+  it('索引缺失时扫描 iwb_ws_* 键兜底', () => {
+    const storage = wsKeysStorage({activeId: 'w1', boards})
+    // 删掉索引，只剩画布键 + active
+    storage.getItem = ((orig) => (k) => (k === 'iwb_web_workspaces' ? null : orig(k)))(storage.getItem)
+    expect(getNodeFileName(document.querySelector('[data-node-id="n1"]'), storage)).toBe('active.png')
+  })
+
+  it('远端 URL 节点（data 为空）→ kind:url；找不到节点 → null', () => {
+    const storage = wsKeysStorage({
+      activeId: 'w1',
+      boards: {w1: {id: 'w1', nodes: [{id: 'n1', data: {url: 'https://x/a.png', data: null, name: 'a.png'}}]}}
+    })
+    expect(getNodeImageDataRef(document.querySelector('[data-node-id="n1"]'), storage)).toEqual({kind: 'url', value: 'https://x/a.png'})
+    expect(getNodeImageDataRef(document.querySelector('[data-node-id="n2"]'), storage)).toBeNull()
+    expect(getNodeImageDataRef(null, storage)).toBeNull()
   })
 })
 

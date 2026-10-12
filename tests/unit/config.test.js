@@ -19,7 +19,8 @@ describe('配置唯一真源', () => {
       bgRatio: 0.85,
       bgMode: 'white',
       compressWidth: 1024,
-      compressQuality: 80
+      compressQuality: 80,
+      useOriginalImage: true
     })
     expect(CONFIG_KEY).toBe('iwb_cutout_config')
   })
@@ -28,6 +29,12 @@ describe('配置唯一真源', () => {
     expect(mergeConfig()).toEqual(DEFAULT_CONFIG)
     expect(mergeConfig(null)).toEqual(DEFAULT_CONFIG)
     expect(mergeConfig('not-an-object')).toEqual(DEFAULT_CONFIG)
+  })
+
+  it('「编辑时加载原图」可关闭，缺省开启', () => {
+    expect(mergeConfig({useOriginalImage: false}).useOriginalImage).toBe(false)
+    expect(mergeConfig({useOriginalImage: 'yes'}).useOriginalImage).toBe(true)
+    expect(mergeConfig().useOriginalImage).toBe(true)
   })
 
   it('内容占比 500% 会被夹到 1，而不是存成 5（旧实现的真实缺陷）', () => {
