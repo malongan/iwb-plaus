@@ -1194,13 +1194,33 @@
     S.overlayCtx = S.overlayCanvas.getContext("2d");
     bindEvents();
   }
-  function loadImage(src) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("\u56FE\u7247\u52A0\u8F7D\u5931\u8D25"));
-      img.src = src;
-    });
+  async function loadImage(src) {
+    let useSrc = src;
+    let revokeUrl = null;
+    if (typeof src === "string" && src.slice(0, 5) === "data:") {
+      try {
+        const blob = await (await fetch(src)).blob();
+        useSrc = URL.createObjectURL(blob);
+        revokeUrl = useSrc;
+      } catch (e) {
+        useSrc = src;
+      }
+    }
+    try {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("\u56FE\u7247\u52A0\u8F7D\u5931\u8D25"));
+        img.src = useSrc;
+      });
+    } finally {
+      if (revokeUrl) {
+        try {
+          URL.revokeObjectURL(revokeUrl);
+        } catch (e) {
+        }
+      }
+    }
   }
 
   // iwb-cutout-extension/src/shared/image-math.js
@@ -4289,6 +4309,8 @@
       console.error("[IWB\u7F16\u8F91\u5668] \u6253\u5F00\u5931\u8D25:", e);
       if (runtime.el) runtime.el.style.display = "none";
       if (options.onError) options.onError(e.message);
+    } finally {
+      options.imageBase64 = null;
     }
   }
   function resetState() {
@@ -5691,13 +5713,32 @@
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (msg && msg.type === "RUN_PROBE") {
         try {
-          sendResponse({ success: true, results: probeHost() });
+          const results = probeHost();
+          const memRow = buildMemoryRow();
+          if (memRow) results.push(memRow);
+          sendResponse({ success: true, results });
         } catch (e) {
           sendResponse({ success: false, error: e.message });
         }
+        return false;
       }
       return false;
     });
+    function buildMemoryRow() {
+      try {
+        const perf = globalThis.performance;
+        if (!perf || !perf.memory || typeof perf.memory.usedJSHeapSize !== "number") return null;
+        const mb = (n) => (n / 1048576).toFixed(1) + "MB";
+        let detail = "JS\u5806 " + mb(perf.memory.usedJSHeapSize);
+        const stats = window.__iwbEditor && typeof window.__iwbEditor.__stats === "function" ? window.__iwbEditor.__stats() : null;
+        if (stats) {
+          detail += "\uFF1B\u7F16\u8F91\u5668\u5386\u53F2 " + mb(stats.historyBytes) + "/" + mb(stats.historyBudget) + "\uFF08" + stats.history + " \u6761\uFF0C\u6253\u5F00\u7F16\u8F91\u5668\u540E\u624D\u975E\u96F6\uFF09";
+        }
+        return { name: "\u5185\u5B58", ok: true, level: "info", detail };
+      } catch (e) {
+        return null;
+      }
+    }
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", init);
     } else {

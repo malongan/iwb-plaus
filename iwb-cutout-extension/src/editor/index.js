@@ -56,6 +56,11 @@ import { updateAllUI } from './events.js'
       console.error('[IWB编辑器] 打开失败:', e)
       if (runtime.el) runtime.el.style.display = 'none'
       if (options.onError) options.onError(e.message)
+    } finally {
+      // 源图字符串只在解码这一刻有用（loadImage 内已转 blob URL）。
+      // 不丢的话 S.callbacks 会在整个编辑会话持有整份 dataURL（4K ≈44MB），
+      // 打开失败路径更是会一直挂到下次打开才被覆盖。
+      options.imageBase64 = null
     }
   }
 

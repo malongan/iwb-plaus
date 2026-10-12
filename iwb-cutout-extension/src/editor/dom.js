@@ -179,11 +179,30 @@ import { bindEvents } from './events.js'
   }
 
   // ============ 图片加载 ============
-  export function loadImage(src) {
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      img.onload = () => resolve(img)
-      img.onerror = () => reject(new Error('图片加载失败'))
-      img.src = src
-    })
+  /**
+   * dataURL 一律先转 blob URL 再喂给 Image：img.src 直接挂 dataURL 会让
+   * 元素在整个编辑会话期间持有一份几十 MB 的字符串（4K 源图 ≈44MB），而
+   * 解码只需一次 —— 载入完成立即 revoke，img 保留的是自己的解码资源，
+   * 之后 drawImage/复原都不再依赖那串字符。
+   */
+  export async function loadImage(src) {
+    let useSrc = src
+    let revokeUrl = null
+    if (typeof src === 'string' && src.slice(0, 5) === 'data:') {
+      try {
+        const blob = await (await fetch(src)).blob()
+        useSrc = URL.createObjectURL(blob)
+        revokeUrl = useSrc
+      } catch (e) { useSrc = src } // fetch 不可用/失败：回落原 dataURL
+    }
+    try {
+      return await new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => resolve(img)
+        img.onerror = () => reject(new Error('图片加载失败'))
+        img.src = useSrc
+      })
+    } finally {
+      if (revokeUrl) { try { URL.revokeObjectURL(revokeUrl) } catch (e) { /* ignore */ } }
+    }
   }

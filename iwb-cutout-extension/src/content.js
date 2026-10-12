@@ -831,13 +831,38 @@ import { resolveImageDataRef } from './shared/original-image.js'
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === 'RUN_PROBE') {
       try {
-        sendResponse({ success: true, results: probeHost() })
+        const results = probeHost()
+        // 附带内存读数：验证「关闭即释放」效果（对比 编辑前/关闭后/刷新页面后）
+        const memRow = buildMemoryRow()
+        if (memRow) results.push(memRow)
+        sendResponse({ success: true, results })
       } catch (e) {
         sendResponse({ success: false, error: e.message })
       }
+      return false
     }
     return false
   })
+
+  /** 自检列表末尾附一行内存观测：JS 堆 + 编辑器历史占用（performance.memory 为 Chrome 实验特性） */
+  function buildMemoryRow() {
+    try {
+      const perf = globalThis.performance
+      if (!perf || !perf.memory || typeof perf.memory.usedJSHeapSize !== 'number') return null
+      const mb = (n) => (n / 1048576).toFixed(1) + 'MB'
+      let detail = 'JS堆 ' + mb(perf.memory.usedJSHeapSize)
+      const stats = window.__iwbEditor && typeof window.__iwbEditor.__stats === 'function'
+        ? window.__iwbEditor.__stats()
+        : null
+      if (stats) {
+        detail += '；编辑器历史 ' + mb(stats.historyBytes) + '/' + mb(stats.historyBudget) +
+          '（' + stats.history + ' 条，打开编辑器后才非零）'
+      }
+      return { name: '内存', ok: true, level: 'info', detail }
+    } catch (e) {
+      return null
+    }
+  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init)
