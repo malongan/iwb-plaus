@@ -62,7 +62,21 @@ import { isDrawableLayer, needsPixelSnapshot, restorePath } from '../shared/laye
 
   // 历史既限条数也限字节：大图下"固定 50 条全量像素"峰值可超过 1GB
   export const HISTORY_MAX_ENTRIES = 50
+  /** 字节预算上限/下限：预算随图幅自适应，见 historyBudgetBytes() */
   export const HISTORY_MAX_BYTES = 128 * 1024 * 1024
+  const HISTORY_MIN_BYTES = 32 * 1024 * 1024
+
+  /**
+   * 快照字节预算（按图幅自适应）：约「4 条全幅快照」，下限 32MB、上限 128MB。
+   * 固定 128MB 的问题：1024 预览图每条仅 4MB ⇒ 可囤 32 条（纯浪费）；
+   * 而 4K 图每条 33MB ⇒ 天然只能放 3 条，与上限无关。按图幅算让
+   * 小图少囤、大图保持现有撤销深度。
+   */
+  export function historyBudgetBytes() {
+    const px = (S.imgW || 0) * (S.imgH || 0) * 4
+    if (!px) return HISTORY_MAX_BYTES
+    return Math.min(HISTORY_MAX_BYTES, Math.max(HISTORY_MIN_BYTES, px * 4))
+  }
 
   /** 一条历史快照的大致内存占用（像素为主，矢量用序列化长度估算） */
   function stateBytes(state) {
@@ -83,8 +97,9 @@ import { isDrawableLayer, needsPixelSnapshot, restorePath } from '../shared/laye
   export function pushHistory(stack, state) {
     state.__bytes = stateBytes(state)
     stack.push(state)
+    const budget = historyBudgetBytes()
     let total = stack.reduce((sum, s) => sum + (s.__bytes || 0), 0)
-    while (stack.length > 1 && (stack.length > HISTORY_MAX_ENTRIES || total > HISTORY_MAX_BYTES)) {
+    while (stack.length > 1 && (stack.length > HISTORY_MAX_ENTRIES || total > budget)) {
       total -= stack.shift().__bytes || 0
     }
     return state

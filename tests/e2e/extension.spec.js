@@ -93,6 +93,8 @@ test('编辑器：点击紫色按钮能打开全屏编辑器', async () => {
   await page.locator('#iwb-editor-overlay [data-action="cancel"]').click()
   await expect(page.locator('#iwb-editor-overlay')).toBeHidden()
   await expect(page.locator('#iwb-cutout-toast')).toBeHidden()
+  // 关闭即释放：全幅图层 canvas 必须被摘除（否则历史/像素缓冲会驻留 ~100MB）
+  await expect(page.locator('.iwb-editor-layer-canvas')).toHaveCount(0)
   await page.close()
 })
 

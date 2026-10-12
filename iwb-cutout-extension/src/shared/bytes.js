@@ -36,8 +36,11 @@ export function bytesToDataUrl(bytes, mime = 'image/png') {
   return `data:${mime};base64,${bytesToBase64(bytes)}`
 }
 
-/** dataURL 或纯 base64 → File */
+/** dataURL / 纯 base64 / Blob → File（Blob 直接包一层，不再过 base64 字符串往返） */
 export function toFile(data, filename = 'image.png', fallbackMime = 'image/png') {
+  if (data && typeof data === 'object' && typeof data.slice === 'function' && typeof data.arrayBuffer === 'function') {
+    return new File([data], filename, { type: data.type || fallbackMime })
+  }
   const { mime, base64 } = splitDataUrl(data)
   const bytes = base64ToBytes(base64)
   return new File([bytes], filename, { type: mime || fallbackMime })

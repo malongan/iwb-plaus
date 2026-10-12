@@ -4126,6 +4126,12 @@
   }
   var HISTORY_MAX_ENTRIES = 50;
   var HISTORY_MAX_BYTES = 128 * 1024 * 1024;
+  var HISTORY_MIN_BYTES = 32 * 1024 * 1024;
+  function historyBudgetBytes() {
+    const px = (S.imgW || 0) * (S.imgH || 0) * 4;
+    if (!px) return HISTORY_MAX_BYTES;
+    return Math.min(HISTORY_MAX_BYTES, Math.max(HISTORY_MIN_BYTES, px * 4));
+  }
   function stateBytes(state) {
     let n = 0;
     if (state && state.bitmaps) {
@@ -4142,8 +4148,9 @@
   function pushHistory(stack, state) {
     state.__bytes = stateBytes(state);
     stack.push(state);
+    const budget = historyBudgetBytes();
     let total = stack.reduce((sum, s) => sum + (s.__bytes || 0), 0);
-    while (stack.length > 1 && (stack.length > HISTORY_MAX_ENTRIES || total > HISTORY_MAX_BYTES)) {
+    while (stack.length > 1 && (stack.length > HISTORY_MAX_ENTRIES || total > budget)) {
       total -= stack.shift().__bytes || 0;
     }
     return state;
@@ -4331,6 +4338,7 @@
       hideTextInput();
       runtime.el.style.display = "none";
     }
+    releaseEditorMemory();
     S.open = false;
     S.callbacks = null;
     S.placingImage = null;
@@ -4340,21 +4348,85 @@
     S.textEditingId = null;
     clearSelection();
   }
+  function releaseEditorMemory() {
+    S.history = [];
+    S.redoStack = [];
+    S.originalImage = null;
+    S.pickerComposite = null;
+    S.isDrawing = false;
+    S.panning = false;
+    S.penDragPt = -1;
+    S.penDragPending = null;
+    S.placingImage = null;
+    S.placingHandle = null;
+    S.placingStart = null;
+    for (const layer of S.layers) {
+      try {
+        if (layer.sourceCanvas) {
+          layer.sourceCanvas.width = 0;
+          layer.sourceCanvas.height = 0;
+        }
+        if (layer.canvas) {
+          if (layer.canvas.parentNode) layer.canvas.parentNode.removeChild(layer.canvas);
+          layer.canvas.width = 0;
+          layer.canvas.height = 0;
+        }
+      } catch (e) {
+      }
+    }
+    S.layers = [];
+    for (const c of [S.textCanvas, S.strokeCanvas, S.overlayCanvas]) {
+      try {
+        if (c) {
+          c.width = 0;
+          c.height = 0;
+        }
+      } catch (e) {
+      }
+    }
+    purgeVectorCanvases();
+  }
   function exportResult(mode) {
     if (S.placingImage) cancelImagePlacement();
     const tmp = getCompositeCanvas();
-    let dataUrl;
-    try {
-      dataUrl = tmp.toDataURL("image/png");
-    } catch (e) {
+    let done = false;
+    const finish = (out) => {
+      if (done) return;
+      done = true;
+      tmp.width = 0;
+      tmp.height = 0;
+      if (S.callbacks && S.callbacks.onResult) {
+        S.callbacks.onResult(out, mode);
+      }
+      close();
+    };
+    const fail = (e) => {
+      if (done) return;
+      done = true;
+      tmp.width = 0;
+      tmp.height = 0;
       console.error("[IWB\u7F16\u8F91\u5668] \u5BFC\u51FA\u5931\u8D25:", e);
       if (S.callbacks && S.callbacks.onError) S.callbacks.onError("\u56FE\u7247\u8DE8\u57DF\u65E0\u6CD5\u5BFC\u51FA");
-      return;
+    };
+    try {
+      if (typeof tmp.toBlob === "function") {
+        tmp.toBlob((blob) => {
+          if (blob) {
+            finish(blob);
+            return;
+          }
+          try {
+            finish(tmp.toDataURL("image/png"));
+          } catch (e) {
+            fail(e);
+          }
+        }, "image/png");
+        return;
+      }
+      finish(tmp.toDataURL("image/png"));
+    } catch (e) {
+      fail(e);
     }
-    if (S.callbacks && S.callbacks.onResult) {
-      S.callbacks.onResult(dataUrl, mode);
-    }
-    close();
   }
   var __stats = () => ({
     history: S.history.length,
@@ -4363,6 +4435,7 @@
     redoBytes: S.redoStack.reduce((n, s) => n + (s.__bytes || 0), 0),
     maxEntries: HISTORY_MAX_ENTRIES,
     maxBytes: HISTORY_MAX_BYTES,
+    historyBudget: historyBudgetBytes(),
     ...snapshotStats
   });
   window.__iwbEditor = {
@@ -4451,6 +4524,9 @@
     return bytes;
   }
   function toFile(data, filename = "image.png", fallbackMime = "image/png") {
+    if (data && typeof data === "object" && typeof data.slice === "function" && typeof data.arrayBuffer === "function") {
+      return new File([data], filename, { type: data.type || fallbackMime });
+    }
     const { mime, base64 } = splitDataUrl(data);
     const bytes = base64ToBytes(base64);
     return new File([bytes], filename, { type: mime || fallbackMime });
